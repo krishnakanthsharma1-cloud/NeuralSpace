@@ -1,44 +1,48 @@
-# .githubworkflowsneuralspace-scan.yml
-name NeuralSpace Security Scan
+# .github/workflows/neuralspace-scan.yml
+name: NeuralSpace Security Scan
 
-on
-  push
-    branches [ main, master ]
-  pull_request
-    branches [ main, master ]
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
-jobs
-  scan
-    runs-on ubuntu-latest
+jobs:
+  scan:
+    runs-on: ubuntu-latest
     
-    steps
-      - name Checkout repository
-        uses actionscheckout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name Set up Python
-        uses actionssetup-python@v5
-        with
-          python-version '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-      - name Install NeuralSpace
-        run 
+      - name: Install NeuralSpace
+        run: |
+          pip install --upgrade pip
           pip install -e .
-          pip install torch --index-url httpsdownload.pytorch.orgwhlcpu
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-      - name Train the AI model
-        run 
+      - name: Train the AI model
+        run: |
           neuralspace generate
           neuralspace train
 
-      - name Scan repository
-        run 
+      - name: Remove training data (to avoid scanning generated threats)
+        run: rm -rf training_data
+
+      - name: Scan repository (excluding test_codebase to avoid false positives)
+        run: |
           neuralspace scan . --quarantine rename
 
-      - name Check for threats
-        run 
-          if find . -name .py.quarantined  grep -q .; then
-            echo ❌ Threats found in the codebase! Please check the logs.
+      - name: Check for threats
+        run: |
+          if find . -name "*.py.quarantined" | grep -q .; then
+            echo "❌ Threats found in the codebase! Please check the logs."
             exit 1
           else
-            echo ✅ No threats detected.
+            echo "✅ No threats detected."
           fi
