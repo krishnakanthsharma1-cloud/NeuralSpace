@@ -25,6 +25,8 @@ jobs:
           pip install --upgrade pip
           pip install -e .
           pip install torch --index-url https://download.pytorch.org/whl/cpu
+          # Add the Python user base to PATH so 'neuralspace' is found
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Train the AI model
         run: |
@@ -34,7 +36,7 @@ jobs:
       - name: Remove training data (to avoid scanning generated threats)
         run: rm -rf training_data
 
-      - name: Scan repository (excluding test_codebase to avoid false positives)
+      - name: Scan repository
         run: |
           neuralspace scan . --quarantine rename
 
