@@ -10,7 +10,7 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,12 +36,10 @@ jobs:
 
       - name: Scan repository (excluding test_codebase)
         run: |
-          # Scan everything EXCEPT the test_codebase folder
           python -m neuralspace.cli scan . --quarantine rename
 
       - name: Check for threats (ignoring test_codebase)
         run: |
-          # Look for quarantined files, but ignore those in test_codebase
           if find . -path ./test_codebase -prune -o -name "*.py.quarantined" -print | grep -q .; then
             echo "❌ Threats found outside test_codebase! Please check the logs."
             exit 1
