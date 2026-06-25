@@ -30,18 +30,20 @@ jobs:
           python -m neuralspace.cli generate
           python -m neuralspace.cli train
 
-      - name: Remove training data
-        run: rm -rf training_data
+      - name: Remove training data and test_codebase
+        run: |
+          rm -rf training_data
+          rm -rf test_codebase
 
-      - name: Scan repository (excluding test_codebase)
+      - name: Scan repository (only safe code remains)
         run: |
           python -m neuralspace.cli scan . --quarantine rename
 
-      - name: Check for threats (ignore test_codebase)
+      - name: Check for threats
         run: |
-          if find . -type f -name "*.py.quarantined" -not -path "./test_codebase/*" | grep -q .; then
-            echo "❌ Threats found outside test_codebase!"
+          if find . -name "*.py.quarantined" | grep -q .; then
+            echo "❌ Threats found in the codebase!"
             exit 1
           else
-            echo "✅ No threats detected outside test_codebase."
+            echo "✅ No threats detected."
           fi
