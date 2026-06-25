@@ -34,13 +34,18 @@ jobs:
       - name: Remove training data
         run: rm -rf training_data
 
-      - name: Scan repository (excluding test_codebase)
+      - name: Scan repository
         run: |
+          # Scan everything EXCEPT the test_codebase folder.
+          # We pass a list of directories to scan, excluding test_codebase.
+          # Since we cannot exclude folders in the CLI directly, we simply scan the root,
+          # but we ensure test_codebase is ignored in the check step below.
           python -m neuralspace.cli scan . --quarantine rename
 
-      - name: Check for threats (ignoring test_codebase)
+      - name: Check for threats (IGNORING test_codebase)
         run: |
-          if find . -path ./test_codebase -prune -o -name "*.py.quarantined" -print | grep -q .; then
+          # Look for .py.quarantined files, but ignore anything inside test_codebase/
+          if find . -type f -name "*.py.quarantined" -not -path "./test_codebase/*" | grep -q .; then
             echo "❌ Threats found outside test_codebase! Please check the logs."
             exit 1
           else
