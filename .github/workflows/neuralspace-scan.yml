@@ -22,23 +22,21 @@ jobs:
 
       - name: Install NeuralSpace
         run: |
-          pip install --upgrade pip
-          pip install -e .
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          # Add the Python user base to PATH so 'neuralspace' is found
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Train the AI model
         run: |
-          neuralspace generate
-          neuralspace train
+          python -m neuralspace.cli generate
+          python -m neuralspace.cli train
 
-      - name: Remove training data (to avoid scanning generated threats)
+      - name: Remove training data
         run: rm -rf training_data
 
       - name: Scan repository
         run: |
-          neuralspace scan . --quarantine rename
+          python -m neuralspace.cli scan . --quarantine rename
 
       - name: Check for threats
         run: |
