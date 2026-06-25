@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.pth
+*.quarantined
+*.quarantine
+tree_snapshot.json
+cognitive_ledger.json
+atom_weights.pth
+security_log.txt
+.DS_Store
+neuralspace.egg-info/
+training_data/

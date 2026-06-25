@@ -1,0 +1,57 @@
+# .github/workflows/neuralspace-scan.yml
+name: NeuralSpace Security Scan
+
+on: [push, pull_request]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install NeuralSpace
+        run: pip install -e .
+      - name: Train & Scan
+        run: |
+          neuralspace generate
+          neuralspace train
+          neuralspace scan .
+    
+    steps:
+      # 1. Checkout the code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 3. Install NeuralSpace
+      - name: Install NeuralSpace
+        run: |
+          pip install -e .
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      # 4. Generate training data (if needed) and train
+      - name: Train the AI model
+        run: |
+          neuralspace generate
+          neuralspace train
+
+      # 5. Scan the entire codebase (excluding tests and venv)
+      - name: Scan repository
+        run: |
+          neuralspace scan . --quarantine rename
+      # 6. Check for quarantined files
+      - name: Check for threats
+        run: |
+          if find . -name "*.py.quarantined" | grep -q .; then
+            echo "❌ Threats found in the codebase! Please check the logs."
+            exit 1
+          else
+            echo "✅ No threats detected."
+          fi

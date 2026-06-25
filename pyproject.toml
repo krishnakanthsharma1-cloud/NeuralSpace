@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuralspace"
+version = "0.1.0"
+description = "Cognitive Code Topology Engine - Self-evolving neural security scanner"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "NeuralSpace Team", email = "team@neuralspace.ai"}]
+dependencies = [
+    "torch",
+    "watchdog",
+    "filelock",
+    "click",
+    "scipy",
+    "numpy",
+    "pandas",
+    "statsmodels",
+]
+
+[project.scripts]
+neuralspace = "neuralspace.cli:cli"
+
+[tool.setuptools.packages.find]
+include = ["neuralspace*"]
+exclude = ["test_codebase*", "training_data*"]
