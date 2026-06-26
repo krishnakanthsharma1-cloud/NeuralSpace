@@ -1,14 +1,23 @@
-# aggregator.py - Simplified with error handling
+# aggregator.py - Full version with PR scanning and commenting
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 import os
 import json
 import hashlib
+import subprocess
+import tempfile
+import shutil
+from pathlib import Path
 from datetime import datetime
+from github import Github
 
-app = FastAPI(title="NeuralSpace Webhook")
+app = FastAPI(title="NeuralSpace GitHub Integration")
 
-# --- In-memory ledger for dashboard ---
+# --- Configuration ---
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
+
+# --- In-memory ledger ---
 threat_ledger = {}
 
 # --- Health Check ---
@@ -33,6 +42,10 @@ DASHBOARD_HTML = """
     <div class="card">
         <div>Total Threats</div>
         <div class="value" id="total">0</div>
+    </div>
+    <div class="card">
+        <div>Last PR Scan</div>
+        <div class="value" id="last">Waiting...</div>
     </div>
     <script>
         async function update() {
@@ -65,7 +78,7 @@ async def report_threat(request: Request):
     except:
         return {"status": "error"}
 
-# --- Webhook Endpoint ---
+# --- Main Webhook ---
 @app.post("/webhook")
 async def webhook(request: Request):
     body = await request.body()
@@ -83,18 +96,19 @@ async def webhook(request: Request):
             action = payload.get("action", "")
             pr_number = payload.get("number", 0)
             repo_name = payload.get("repository", {}).get("full_name", "unknown")
-            branch = payload.get("pull_request", {}).get("head", {}).get("ref", "unknown")
+            clone_url = payload.get("repository", {}).get("clone_url", "")
+            pr_head_ref = payload.get("pull_request", {}).get("head", {}).get("ref", "main")
+            pr_head_repo = payload.get("pull_request", {}).get("head", {}).get("repo", {}).get("clone_url", "")
             
             print(f"[*] PR #{pr_number} in {repo_name}")
-            print(f"[*] Action: {action}, Branch: {branch}")
+            print(f"[*] Action: {action}, Branch: {pr_head_ref}")
             
-            # Try to run the scanner, but don't crash if it fails
-            try:
+            # Only scan on opened, synchronize, or reopened
+            if action in ["opened", "synchronize", "reopened"]:
                 result = await scan_pr(payload)
                 return {"status": "scanned", "result": result}
-            except Exception as e:
-                print(f"[!] Scanner error: {e}")
-                return {"status": "webhook_received", "scanner": "failed", "error": str(e)}
+            else:
+                return {"status": "ignored", "reason": f"action {action}"}
                 
         except Exception as e:
             print(f"[!] Error: {e}")
@@ -102,50 +116,125 @@ async def webhook(request: Request):
     
     return {"status": "ignored", "event": event_type}
 
-# --- Scanner Function ---
+# --- Scan PR Function ---
 async def scan_pr(payload):
-    """Try to import the scanner and run it."""
+    """Clone the PR branch, scan it, and post a comment."""
+    
+    if not GITHUB_TOKEN:
+        print("[!] No GitHub token, skipping scan")
+        return "No token provided"
+    
     try:
-        # Try to import the scanner
-        import sys
-        import subprocess
-        import tempfile
-        from pathlib import Path
-        
-        print("[*] Attempting to import neuralspace.scanner...")
-        
-        # Add the current directory to Python path
-        sys.path.insert(0, os.getcwd())
-        
-        from neuralspace.engine import CovalentTreeEngine
-        
-        pr_number = payload.get("number", 0)
+        g = Github(GITHUB_TOKEN)
         repo_name = payload.get("repository", {}).get("full_name", "unknown")
-        branch = payload.get("pull_request", {}).get("head", {}).get("ref", "unknown")
+        repo = g.get_repo(repo_name)
+        pr_number = payload.get("number", 0)
+        pr = repo.get_pull(pr_number)
+        branch = payload.get("pull_request", {}).get("head", {}).get("ref", "main")
         clone_url = payload.get("pull_request", {}).get("head", {}).get("repo", {}).get("clone_url", "")
         
-        engine = CovalentTreeEngine()
-        
-        print(f"[*] Scanner loaded successfully. Would scan PR #{pr_number}")
-        
-        return {
-            "status": "scanner_ready",
-            "pr": pr_number,
-            "repo": repo_name,
-            "branch": branch,
-            "message": "Scanner loaded successfully"
-        }
-        
-    except ImportError as e:
-        print(f"[!] ImportError: {e}")
-        return {
-            "status": "scanner_unavailable",
-            "error": str(e),
-            "message": "Scanner module not loaded. Check if neuralspace is installed."
-        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            clone_path = Path(tmpdir)
+            repo_url = clone_url.replace("https://", f"https://x-access-token:{GITHUB_TOKEN}@")
+            
+            print(f"[*] Cloning branch {branch}")
+            result = subprocess.run(
+                ["git", "clone", "--branch", branch, "--depth", "1", repo_url, str(clone_path)],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode != 0:
+                print(f"[!] Clone failed: {result.stderr}")
+                return "Clone failed"
+            
+            print("[*] Clone successful")
+            
+            # Get changed files
+            changed_files = [f.filename for f in pr.get_files()]
+            print(f"[*] Changed files: {changed_files}")
+            
+            # Import scanner
+            import sys
+            sys.path.insert(0, os.getcwd())
+            from neuralspace.engine import CovalentTreeEngine
+            
+            engine = CovalentTreeEngine()
+            results = []
+            threat_count = 0
+            
+            for file_path in changed_files:
+                full_path = clone_path / file_path
+                if not full_path.exists():
+                    continue
+                
+                ext = full_path.suffix.lower()
+                if ext not in ['.py', '.js', '.ts', '.go', '.rs', '.jsx', '.tsx']:
+                    continue
+                
+                try:
+                    with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        code = f.read()
+                    
+                    status, s_score, l_score, node_id, trace = engine.process_drop_explain(code, file_path)
+                    
+                    if status == "BLOCKED":
+                        threat_count += 1
+                    
+                    results.append({
+                        "file": file_path,
+                        "status": status,
+                        "sentinel": round(s_score, 4),
+                        "logic": round(l_score, 4),
+                        "trace": trace[:3] if trace else []
+                    })
+                    
+                    print(f"[*] {file_path}: {status}")
+                    
+                except Exception as e:
+                    print(f"[!] Error scanning {file_path}: {e}")
+                    results.append({"file": file_path, "status": "ERROR", "error": str(e)})
+            
+            # Build comment
+            comment_lines = []
+            comment_lines.append(f"## 🧠 NeuralSpace Scan Results for PR #{pr_number}\n")
+            
+            if threat_count == 0:
+                comment_lines.append("✅ **No threats detected** in this pull request.\n")
+            else:
+                comment_lines.append(f"⚠️ **{threat_count} threat(s) detected** in this pull request:\n")
+                for r in results:
+                    if r.get("status") == "BLOCKED":
+                        comment_lines.append(f"- `{r['file']}` → 🔴 **BLOCKED** (S={r.get('sentinel', 0):.4f})")
+                        for trace_line in r.get("trace", []):
+                            comment_lines.append(f"  - {trace_line}")
+                        comment_lines.append("")
+            
+            if threat_count == 0:
+                comment_lines.append("---")
+                comment_lines.append("✅ This PR is safe to merge. NeuralSpace found no malicious patterns.")
+            
+            comment_text = "\n".join(comment_lines)
+            
+            # Post comment
+            print(f"[*] Posting comment to PR #{pr_number}")
+            existing_comments = pr.get_issue_comments()
+            for comment in existing_comments:
+                if comment.user.login == "github-actions[bot]":
+                    comment.edit(comment_text)
+                    print("[*] Updated existing comment")
+                    break
+            else:
+                pr.create_issue_comment(comment_text)
+                print("[*] Created new comment")
+            
+            return f"Scanned {len(results)} files, {threat_count} threats found"
+            
     except Exception as e:
-        print(f"[!] Unexpected error: {e}")
-        return {"status": "error", "error": str(e)}
+        print(f"[!] Error in scan_pr: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Error: {str(e)}"
 
 if __name__ == "__main__":
     import uvicorn
