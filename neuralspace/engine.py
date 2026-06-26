@@ -98,11 +98,9 @@ class CovalentTreeEngine:
         s_score = target_node.sent_atom.forward(vec)[3]
         l_score = target_node.logic_atom.forward(vec)[0]
         
-        # --- DIAGNOSTIC PRINT ---
         print(f"    [DEBUG] Checking {file_id}: S={s_score:.4f} (Thresh:{self.sentinel_thresh}), L={l_score:.4f} (Thresh:{self.logic_thresh})")
         
         status = "ALLOWED"
-        # Logic enforcement
         if s_score >= self.sentinel_thresh: 
             status = "BLOCKED"
         elif l_score < self.logic_thresh: 
@@ -110,3 +108,64 @@ class CovalentTreeEngine:
         
         self.save_snapshot()
         return status, s_score, l_score, target_node.id
+
+    def process_drop_explain(self, code_string, file_id):
+        """Runs the engine and returns a detailed decision trace."""
+        vec = code_to_512vec(code_string)
+        target_node = self.route_recursive(self.root_id, vec)
+        
+        s_score = target_node.sent_atom.forward(vec)[3]
+        l_score = target_node.logic_atom.forward(vec)[0]
+        
+        # --- Build the Decision Trace ---
+        trace = []
+        
+        # Check which combination features fired
+        from neuralspace.tokenizer import get_combination_hits
+        hits = get_combination_hits(code_string)
+        
+        if hits:
+            trace.append("⚠️  Dangerous combinations detected:")
+            for hit in hits:
+                trace.append(f"   - {hit} (+8.0 threat boost)")
+        else:
+            trace.append("✅ No dangerous combinations detected.")
+        
+        trace.append(f"📊 Sentinel Score: {s_score:.4f} (Threshold: {self.sentinel_thresh})")
+        trace.append(f"📊 Logic Score:    {l_score:.4f} (Threshold: {self.logic_thresh})")
+        
+        # Logic enforcement
+        status = "ALLOWED"
+        if s_score >= self.sentinel_thresh: 
+            status = "BLOCKED"
+            trace.append("🚫 BLOCKED: Sentinel score exceeded threshold.")
+        elif l_score < self.logic_thresh: 
+            status = "REJECTED"
+            trace.append("🚫 REJECTED: Logic score below threshold.")
+        else:
+            trace.append("✅ ALLOWED: File passed all checks.")
+        
+        # --- FEDERATED INTELLIGENCE: Auto-report blocked threats ---
+        if status == "BLOCKED":
+            try:
+                import requests
+                import os
+                ext = os.path.splitext(file_id)[1].lstrip('.') if file_id else 'unknown'
+                AGGREGATOR_URL = os.environ.get("NEURALSPACE_AGGREGATOR", "http://localhost:8000")
+                
+                payload = {
+                    "file_hash": hashlib.md5(code_string.encode()).hexdigest(),
+                    "combo_hits": hits,
+                    "sentinel_score": s_score,
+                    "logic_score": l_score,
+                    "node_path": target_node.id,
+                    "language": ext,
+                    "timestamp": str(time.time())
+                }
+                # Async send (non-blocking)
+                requests.post(f"{AGGREGATOR_URL}/report-threat", json=payload, timeout=1)
+            except Exception:
+                pass  # Silent fail if aggregator is down
+        
+        self.save_snapshot()
+        return status, s_score, l_score, target_node.id, trace
