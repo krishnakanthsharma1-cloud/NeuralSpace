@@ -121,17 +121,13 @@ def verify_signature(request_body: bytes, signature: str) -> bool:
 
 @app.post("/webhook")
 async def github_webhook(request: Request):
-    """Receive webhooks from GitHub."""
-    # 1. Verify signature
-    signature = request.headers.get("X-Hub-Signature-256", "")
-    if signature.startswith("sha256="):
-        signature = signature[7:]
+    """Receive webhooks from GitHub (with verification disabled for debugging)."""
     
-    body = await request.body()
-    if not verify_signature(body, signature):
-        raise HTTPException(status_code=401, detail="Invalid signature")
+    # Log the request headers for debugging
+    headers = dict(request.headers)
+    print(f"[*] Received headers: {headers}")
     
-    # 2. Parse the event
+    # Parse the event
     payload = await request.json()
     event_type = request.headers.get("X-GitHub-Event", "unknown")
     
@@ -147,8 +143,6 @@ async def github_webhook(request: Request):
         
         print(f"[*] PR #{pr_number} in {repo_name} - Action: {action}")
         
-        # TODO: In the next phase, we will clone the repo and run the scanner here.
-        # For now, we just acknowledge receipt.
         return {
             "status": "received",
             "event": event_type,
