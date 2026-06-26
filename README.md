@@ -1,8 +1,8 @@
 # 🧠 NeuralSpace – Cognitive Code Security Engine
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI/CD](https://github.com/yourusername/NeuralSpace/actions/workflows/neuralspace-scan.yml/badge.svg)](https://github.com/yourusername/NeuralSpace/actions)
+[![CI/CD](https://github.com/krishnakanthsharmat-cloud/NeuralSpace/actions/workflows/neuralspace-scan.yml/badge.svg)](https://github.com/krishnakanthsharmat-cloud/NeuralSpace/actions)
 
 **NeuralSpace** is a next‑generation, self‑evolving security scanner that detects obfuscated malicious code using a **Covalent Tree topology** – a novel neural architecture that routes code through a fractal decision tree where each branch has its own specialized "neural atom."
 
@@ -26,8 +26,10 @@ Unlike traditional static scanners (SAST/NGAV) that rely on rigid rule sets or g
 - **🧬 Self‑Evolving Topology** – The Covalent Tree spawns new branches when it detects structural drift in your code (cosine similarity < 0.15). It doesn't just classify; it *organizes* your codebase.
 - **🧠 Distributed Neural Atoms** – Each tree branch has its own `PureNeuralAtom` (512→4→4 network) initialized with a unique seed. This creates specialized "brains" for different code families (e.g., web scrapers vs. quant math vs. CLI tools).
 - **🛡️ Obfuscation‑Resistant Tokenizer** – Engineered combination features (indices 490–495) catch multi‑stage evasions like `base64` + `exec` + `requests`, bypassing the neural network's natural struggle with long‑range dependencies.
+- **🌍 Polyglot** – Scans **Python, JavaScript, TypeScript, Go, and Rust** (more coming soon).
 - **⚡ Ultra‑Lightweight & Local** – Trains in under 1 minute on a standard CPU. No cloud, no GPU, no expensive API calls.
-- **🔗 CI/CD Native** – Ships with a pre‑built GitHub Action that runs on every `push` and `pull_request`, making it frictionless for DevSecOps teams.
+- **🔗 CI/CD Native** – Ships with a pre‑built GitHub Action that runs on every `push` and `pull_request`.
+- **🌐 Federated Intelligence** – Shares anonymized threat signatures with a global network, creating a living immune system.
 
 ---
 
@@ -49,8 +51,8 @@ Unlike traditional static scanners (SAST/NGAV) that rely on rigid rule sets or g
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/NeuralSpace.git
+git clone https://github.com/krishnakanthsharmat-cloud/NeuralSpace.git
 cd NeuralSpace
 
 # Install in development mode (recommended)
-pip install -e .
+pip install -e .	
