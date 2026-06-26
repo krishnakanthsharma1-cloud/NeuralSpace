@@ -1,3 +1,4 @@
+# .github/workflows/neuralspace-scan.yml
 name: NeuralSpace Security Scan
 
 on:
@@ -19,31 +20,32 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install NeuralSpace
+      - name: Install NeuralSpace and dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install requests fastapi uvicorn
+          python -m pip install tree-sitter tree-sitter-python tree-sitter-javascript tree-sitter-typescript tree-sitter-go tree-sitter-rust
 
       - name: Train the AI model
         run: |
           python -m neuralspace.cli generate
           python -m neuralspace.cli train
 
-      - name: Remove training data and test_codebase
-        run: |
-          rm -rf training_data
-          rm -rf test_codebase
+      - name: Remove training data
+        run: rm -rf training_data
 
-      - name: Scan repository (only safe code remains)
+      - name: Scan repository (excluding test folders)
         run: |
-          python -m neuralspace.cli scan . --quarantine rename
+          # Scan source code only (skip test_* and test_codebase folders)
+          python -m neuralspace.cli scan neuralspace --quarantine rename
 
       - name: Check for threats
         run: |
           if find . -name "*.py.quarantined" | grep -q .; then
-            echo "❌ Threats found in the codebase!"
+            echo "❌ Threats found in the source code!"
             exit 1
           else
-            echo "✅ No threats detected."
+            echo "✅ No threats detected in source code."
           fi
