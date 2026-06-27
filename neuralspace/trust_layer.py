@@ -2,6 +2,7 @@
 import json
 import hashlib
 import time
+import os
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import (
@@ -9,8 +10,25 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
     PrivateFormat,
     NoEncryption,
+    load_pem_public_key,
+    load_pem_private_key
 )
-import os
+
+# --- SIMPLE KEY REGISTRY (Public Key Infrastructure) ---
+# In production, this would be a database. For now, it's a local file.
+KEY_REGISTRY_PATH = "trust_registry.json"
+
+def load_registry():
+    """Load the public key registry from disk."""
+    if os.path.exists(KEY_REGISTRY_PATH):
+        with open(KEY_REGISTRY_PATH, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_registry(registry):
+    """Save the public key registry to disk."""
+    with open(KEY_REGISTRY_PATH, 'w') as f:
+        json.dump(registry, f, indent=4)
 
 class TrustNode:
     """
@@ -28,6 +46,16 @@ class TrustNode:
         self.reputation_history = []
         self.verified_reports = 0
         self.false_reports = 0
+        
+        # Register this node's public key in the registry
+        registry = load_registry()
+        if node_id not in registry:
+            registry[node_id] = self.public_key.public_bytes(
+                Encoding.PEM,
+                PublicFormat.SubjectPublicKeyInfo
+            ).decode()
+            save_registry(registry)
+            print(f"[*] Trust Node {node_id[:8]} registered in key registry.")
     
     def sign_report(self, report):
         """Sign a threat report with the node's private key."""
@@ -51,22 +79,48 @@ class TrustNode:
         }
     
     def verify_report(self, signed_report):
-        """Verify a signed report from another node."""
+        """
+        Verify a signed report from another node.
+        Returns True if the signature is valid and the node is trusted.
+        """
         try:
             # Extract data
             report = signed_report["report"]
             signature = bytes.fromhex(signed_report["signature"])
             node_id = signed_report["node_id"]
             
+            # Load the node's public key from the registry
+            registry = load_registry()
+            if node_id not in registry:
+                print(f"[!] Node {node_id[:8]} not registered in key registry.")
+                self.update_trust(node_id, False)
+                return False
+            
+            # Load the public key
+            public_key = load_pem_public_key(registry[node_id].encode())
+            
             # Recompute hash
             report_str = json.dumps(report, sort_keys=True)
             report_hash = hashlib.sha256(report_str.encode()).hexdigest()
             
-            # Verify using node's public key (we need to fetch it from a registry)
-            # For now, we check trust score
+            # Verify the signature
+            public_key.verify(
+                signature,
+                report_hash.encode(),
+                padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()),
+                    salt_length=padding.PSS.MAX_LENGTH
+                ),
+                hashes.SHA256()
+            )
+            
+            # If we get here, the signature is valid
+            self.update_trust(node_id, True)
             return True
+            
         except Exception as e:
             print(f"[!] Verification failed: {e}")
+            self.update_trust(node_id, False)
             return False
     
     def get_public_key_pem(self):

@@ -1,10 +1,20 @@
-# neuralspace/tokenizer.py
+# tokenizer.py
 import math
 import hashlib
 import re
 from pathlib import Path
 
-# --- Fallback regex tokenizer (always available) ---
+# --- Import the taint analyzer ---
+try:
+    from neuralspace.ast_analyzer import code_to_features_with_taint
+    HAS_TAINT = True
+except ImportError:
+    HAS_TAINT = False
+    print("[!] Taint analyzer not available. Falling back to regex tokenizer.")
+
+# ======================================================================
+# FALLBACK: REGEX-BASED TOKENIZER (used if taint analysis is unavailable)
+# ======================================================================
 def code_to_512vec(code_string: str):
     counts = [0.0] * 512
 
@@ -23,7 +33,7 @@ def code_to_512vec(code_string: str):
             idx = 160 + h_base
         counts[idx] += 1.0
 
-    # --- Combination features (hard-coded) ---
+    # --- Hard‑coded combination features (fallback) ---
     token_set = set(tokens)
 
     has_requests = 'requests' in token_set
@@ -62,15 +72,75 @@ def code_to_512vec(code_string: str):
     norm = math.sqrt(sum(v * v for v in vec))
     return [v / norm for v in vec] if norm > 0 else vec
 
+# ======================================================================
+# TAINT‑AWARE TOKENIZER (uses taint analysis + regex fallback)
+# ======================================================================
+def code_to_512vec_with_taint(code_string: str, file_extension: str = '.py', use_taint: bool = True):
+    """
+    Convert code to a 512‑dimension vector, optionally using taint analysis.
+    The `file_extension` (e.g. '.py', '.js') is passed to the taint analyzer.
+    """
+    # Get taint features if available and requested
+    if HAS_TAINT and use_taint:
+        taint_features = code_to_features_with_taint(code_string, file_extension)
+    else:
+        taint_features = {
+            "has_tainted_exec": False,
+            "has_tainted_system": False,
+            "has_tainted_eval": False,
+            "has_tainted_sink": False,
+            "taint_count": 0,
+            "sink_count": 0,
+            "sink_list": []
+        }
 
-# --- Helper for Explainability ---
+    # Get the base vector via the regex tokenizer
+    base_vec = code_to_512vec(code_string)
+
+    # --- Add taint features to the vector (indices 480-489) ---
+    if taint_features["has_tainted_exec"]:
+        base_vec[480] += 8.0
+    if taint_features["has_tainted_eval"]:
+        base_vec[481] += 8.0
+    if taint_features["has_tainted_system"]:
+        base_vec[482] += 8.0
+
+    if taint_features["has_tainted_sink"]:
+        base_vec[483] += 5.0
+
+    sink_count = min(taint_features["sink_count"], 5)
+    base_vec[484] += sink_count * 2.0
+
+    taint_count = min(taint_features["taint_count"], 5)
+    base_vec[485] += taint_count * 2.0
+
+    # Re‑normalize the vector
+    norm = math.sqrt(sum(v * v for v in base_vec))
+    if norm > 0:
+        return [v / norm for v in base_vec]
+    return base_vec
+
+# ======================================================================
+# LANGUAGE‑AWARE ENTRY POINT (used by engine.py)
+# ======================================================================
+def code_to_512vec_with_language(code_string: str, file_path: str):
+    """
+    Detect file extension and route to the appropriate tokenizer.
+    This is called from the scanner.
+    """
+    ext = Path(file_path).suffix.lower()
+    # Always use the taint‑aware tokenizer (which falls back to regex if needed)
+    return code_to_512vec_with_taint(code_string, ext, use_taint=True)
+
+# ======================================================================
+# HELPERS FOR EXPLAINABILITY (kept for compatibility)
+# ======================================================================
 def get_combination_hits(code_string: str):
-    """Scans the code for dangerous combinations and returns human-readable explanations."""
+    """Scans the code for dangerous combinations and returns human‑readable explanations."""
     tokens = re.findall(r'\b\w+\b|[^\w\s]', code_string)
     token_set = set(tokens)
-    
+
     hits = []
-    
     has_requests = 'requests' in token_set
     has_exec = 'exec' in token_set
     has_eval = 'eval' in token_set
@@ -81,7 +151,7 @@ def get_combination_hits(code_string: str):
     has_system = 'system' in token_set
     has_connect = 'connect' in token_set
     has_popen = 'Popen' in token_set
-    
+
     if has_requests and has_exec:
         hits.append("requests + exec (potential remote code execution)")
     if has_base64 and has_exec:
@@ -94,23 +164,5 @@ def get_combination_hits(code_string: str):
         hits.append("socket + connect (potential reverse shell)")
     if has_subprocess and has_popen:
         hits.append("subprocess + Popen (process spawning)")
-    
+
     return hits
-
-
-# --- Language-aware tokenizer (AST fallback) ---
-def code_to_512vec_with_language(code_string: str, file_path: str):
-    """Route to the correct tokenizer based on file extension."""
-    ext = Path(file_path).suffix.lower()
-    
-    # Only use AST tokenizer for these extensions
-    if ext in {'.py', '.js', '.ts', '.go', '.rs', '.cpp', '.c', '.h', '.jsx', '.tsx'}:
-        try:
-            from neuralspace.ast_tokenizer import code_to_512vec_ast
-            return code_to_512vec_ast(code_string, ext)
-        except (ImportError, ModuleNotFoundError):
-            # If AST tokenizer fails, fall back to regex
-            return code_to_512vec(code_string)
-    else:
-        # Fallback for unknown languages
-        return code_to_512vec(code_string)

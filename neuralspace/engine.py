@@ -3,8 +3,9 @@ import os
 import time
 import hashlib
 import math
-from neuralspace.tokenizer import code_to_512vec
+from neuralspace.tokenizer import code_to_512vec, code_to_512vec_with_language
 from neuralspace.atoms import PureNeuralAtom
+from neuralspace.hive_mind import HiveMind
 
 # --- MATH HELPERS ---
 def cosine_similarity(v1, v2):
@@ -32,7 +33,7 @@ class FractalNode:
         self.last_accessed = time.time()
         self.logic_atom = PureNeuralAtom(self.logic_seed)
         self.sent_atom = PureNeuralAtom(self.sent_seed)
-        self.history = []  # Store recent vectors for drift velocity calculation
+        self.history = []
 
     def to_dict(self):
         return {
@@ -50,14 +51,13 @@ class CovalentTreeEngine:
         self.root_id = "0x0000"
         self.max_depth = 5
         self.sim_threshold = 0.85
-        
-        # Golden Parameters from Batch-Forge
         self.logic_seed = 257
         self.sentinel_seed = 268
         self.logic_thresh = 0.2
         self.sentinel_thresh = 0.25
-        
+        self.hive_mind = HiveMind(consensus_threshold=0.7)
         self.load_snapshot()
+        self.hive_mind.register_agent(self.root_id)
 
     def load_snapshot(self):
         if os.path.exists(self.snapshot_path):
@@ -93,37 +93,23 @@ class CovalentTreeEngine:
         return node
 
     def calculate_drift_velocity(self, node, vec):
-        """Calculate how fast the code is changing (drift velocity)."""
-        # Store the current vector
         node.history.append(vec)
-        
-        # Keep only last 10 vectors
         if len(node.history) > 10:
             node.history.pop(0)
-        
-        # If we have less than 2 points, no velocity yet
         if len(node.history) < 2:
             return 0.0
-        
-        # Calculate the average change between consecutive vectors
         total_drift = 0.0
         for i in range(1, len(node.history)):
             sim = cosine_similarity(node.history[i-1], node.history[i])
             drift = 1.0 - sim
             total_drift += drift
-        
         return total_drift / (len(node.history) - 1)
     
     def anticipate_and_fracture(self, node, vec):
-        """Predict future drift and proactively spawn branches."""
         drift_velocity = self.calculate_drift_velocity(node, vec)
-        
-        # If drift velocity is high, spawn a child preemptively
         if drift_velocity > 0.5 and node.depth < self.max_depth:
             print(f"    [ARCHITECT] High drift velocity detected: {drift_velocity:.2f}")
             print(f"    [ARCHITECT] Anticipatory fracture! Spawning new branch...")
-            
-            # Create new child node
             new_id = f"0x{len(self.nodes):04X}"
             new_node = FractalNode(
                 node_id=new_id,
@@ -135,49 +121,51 @@ class CovalentTreeEngine:
             )
             self.nodes[new_id] = new_node
             node.children.append(new_id)
+            self.hive_mind.register_agent(new_id)
             self.save_snapshot()
-            
             print(f"    [ARCHITECT] 🚀 Spawned anticipatory branch: {new_id}")
             return new_node
-        
         return node
 
+    def query_hive_mind(self, vec, file_id):
+        agent_ids = list(self.nodes.keys())
+        for node_id in agent_ids:
+            node = self.nodes[node_id]
+            s_score = node.sent_atom.forward(vec)[3]
+            confidence = min(1.0, len(node.children) / 10.0 + 0.5)
+            self.hive_mind.submit_vote(node_id, s_score, confidence)
+        return self.hive_mind.get_consensus(agent_ids)
+
     def process_drop(self, code_string, file_id):
-        vec = code_to_512vec(code_string)
+        vec = code_to_512vec_with_language(code_string, file_id)
         target_node = self.route_recursive(self.root_id, vec)
-        
         s_score = target_node.sent_atom.forward(vec)[3]
         l_score = target_node.logic_atom.forward(vec)[0]
-        
         print(f"    [DEBUG] Checking {file_id}: S={s_score:.4f} (Thresh:{self.sentinel_thresh}), L={l_score:.4f} (Thresh:{self.logic_thresh})")
-        
         status = "ALLOWED"
         if s_score >= self.sentinel_thresh: 
             status = "BLOCKED"
         elif l_score < self.logic_thresh: 
             status = "REJECTED"
-        
         self.save_snapshot()
         return status, s_score, l_score, target_node.id
 
     def process_drop_explain(self, code_string, file_id):
         """Runs the engine and returns a detailed decision trace."""
-        vec = code_to_512vec(code_string)
+        # --- USE LANGUAGE-AWARE TOKENIZER ---
+        vec = code_to_512vec_with_language(code_string, file_id)
         target_node = self.route_recursive(self.root_id, vec)
-        
-        # --- AUTONOMOUS EVOLUTION: Anticipatory fracturing ---
         target_node = self.anticipate_and_fracture(target_node, vec)
+        
+        consensus = self.query_hive_mind(vec, file_id)
+        print(f"    [HIVE] Consensus: {consensus['decision']} (Score: {consensus['consensus']:.2f})")
         
         s_score = target_node.sent_atom.forward(vec)[3]
         l_score = target_node.logic_atom.forward(vec)[0]
         
-        # --- Build the Decision Trace ---
         trace = []
-        
-        # Check which combination features fired
         from neuralspace.tokenizer import get_combination_hits
         hits = get_combination_hits(code_string)
-        
         if hits:
             trace.append("⚠️  Dangerous combinations detected:")
             for hit in hits:
@@ -185,31 +173,44 @@ class CovalentTreeEngine:
         else:
             trace.append("✅ No dangerous combinations detected.")
         
+        # --- ADD TAINT ANALYSIS RESULTS ---
+        try:
+            from neuralspace.ast_analyzer import code_to_features_with_taint
+            ext = os.path.splitext(file_id)[1].lower() if '.' in file_id else '.py'
+            print(f"    [DEBUG] Running taint analysis for {file_id} with ext={ext}")
+            taint_results = code_to_features_with_taint(code_string, ext)
+            print(f"    [DEBUG] Taint results: has_tainted_sink={taint_results['has_tainted_sink']}, flow={taint_results['taint_flow']}")
+            if taint_results["has_tainted_sink"]:
+                trace.append("🔍 TAINT ANALYSIS: Tainted data reaches dangerous sink!")
+                for flow in taint_results["taint_flow"]:
+                    trace.append(f"   - {flow[0]} → {flow[1]}")
+        except Exception as e:
+            trace.append(f"[!] Taint analysis skipped: {e}")
+            print(f"    [DEBUG] Taint analysis error: {e}")        
         trace.append(f"📊 Sentinel Score: {s_score:.4f} (Threshold: {self.sentinel_thresh})")
         trace.append(f"📊 Logic Score:    {l_score:.4f} (Threshold: {self.logic_thresh})")
         
-        # Logic enforcement
         status = "ALLOWED"
-        if s_score >= self.sentinel_thresh: 
+        if s_score >= self.sentinel_thresh:
             status = "BLOCKED"
             trace.append("🚫 BLOCKED: Sentinel score exceeded threshold.")
-        elif l_score < self.logic_thresh: 
+        elif l_score < self.logic_thresh:
             status = "REJECTED"
             trace.append("🚫 REJECTED: Logic score below threshold.")
         else:
             trace.append("✅ ALLOWED: File passed all checks.")
         
-        # --- FEDERATED INTELLIGENCE: Auto-report blocked threats (SIGNED) ---
+        if consensus["decision"] == "THREAT" and status == "ALLOWED":
+            status = "BLOCKED"
+            trace.append("🧠 HIVE MIND: Collective consensus overrode individual decision.")
+        
+        # --- Signed reporting ---
         if status == "BLOCKED":
             try:
                 import requests
-                import os
                 from neuralspace.trust_layer import TrustNode
-                
                 ext = os.path.splitext(file_id)[1].lstrip('.') if file_id else 'unknown'
                 AGGREGATOR_URL = os.environ.get("NEURALSPACE_AGGREGATOR", "http://localhost:8000")
-                
-                # Create the report
                 report = {
                     "combo_hits": hits,
                     "sentinel_score": s_score,
@@ -218,17 +219,9 @@ class CovalentTreeEngine:
                     "language": ext,
                     "timestamp": str(time.time())
                 }
-                
-                # Sign the report
                 trust_node = TrustNode()
                 signed_report = trust_node.sign_report(report)
-                
-                # Send signed report
-                requests.post(
-                    f"{AGGREGATOR_URL}/report-threat",
-                    json=signed_report,
-                    timeout=2
-                )
+                requests.post(f"{AGGREGATOR_URL}/report-threat", json=signed_report, timeout=2)
                 print(f"[*] Signed threat report sent to aggregator")
             except Exception as e:
                 print(f"[!] Reporting failed: {e}")

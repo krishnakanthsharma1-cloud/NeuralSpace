@@ -312,12 +312,18 @@ async def whisper(request: Request):
     """
     try:
         payload = await request.json()
-        command = payload.get("command", "").lower()
+        command = payload.get("command", "").lower().strip()
         
         print(f"[*] God User command: {command}")
         
-        # --- Command: Health ---
-        if "health" in command or "status" in command:
+        # --- REAL INTENT PARSING ---
+        # We use a combination of keyword matching and simple NLP
+        
+        # Extract the "action" and "target" from the command
+        words = command.split()
+        
+        # --- Health Check ---
+        if any(w in command for w in ["health", "status", "universe", "alive"]):
             return {
                 "status": "executed",
                 "action": "health",
@@ -327,10 +333,37 @@ async def whisper(request: Request):
                 "timestamp": datetime.now().isoformat()
             }
         
-        # --- Command: Spawn Branch ---
+        # --- Spawn Branch ---
         elif "spawn" in command and "branch" in command:
+            import time
             new_id = f"0x{int(time.time()) % 10000:04X}"
-            print(f"[*] God User: Spawning new branch {new_id}")
+            
+            # Actually create a new branch in the tree
+            # We need to import the engine and create a real node
+            import sys
+            sys.path.insert(0, os.getcwd())
+            from neuralspace.engine import FractalNode, quantize_int8, CovalentTreeEngine
+            
+            # Load the tree
+            engine = CovalentTreeEngine()
+            root_node = engine.nodes[engine.root_id]
+            
+            # Create a new node
+            new_node = FractalNode(
+                node_id=new_id,
+                parent_id=root_node.id,
+                logic_seed=engine.logic_seed + len(engine.nodes),
+                sent_seed=engine.sentinel_seed + len(engine.nodes),
+                q_latent=quantize_int8([0.0] * 512),  # Default latent vector
+                depth=1
+            )
+            
+            # Add to tree
+            engine.nodes[new_id] = new_node
+            root_node.children.append(new_id)
+            engine.save_snapshot()
+            
+            print(f"[*] God User: Spawned new branch {new_id}")
             return {
                 "status": "executed",
                 "action": "spawn_branch",
@@ -338,8 +371,8 @@ async def whisper(request: Request):
                 "message": f"🌱 Spawned new branch {new_id}"
             }
         
-        # --- Command: Show Threats ---
-        elif "threat" in command and ("show" in command or "list" in command or "recent" in command):
+        # --- Show Threats ---
+        elif "threat" in command and any(w in command for w in ["show", "list", "recent"]):
             threats = list(threat_ledger.values())[-5:]
             return {
                 "status": "executed",
@@ -349,7 +382,7 @@ async def whisper(request: Request):
                 "count": len(threats)
             }
         
-        # --- Command: Evolve ---
+        # --- Evolve ---
         elif "evolve" in command:
             return {
                 "status": "executed",
@@ -357,11 +390,52 @@ async def whisper(request: Request):
                 "message": "🧬 Evolution cycle triggered. The universe is adapting."
             }
         
+        # --- Command: Show Tree ---
+        elif "tree" in command or "topology" in command:
+            import sys
+            sys.path.insert(0, os.getcwd())
+            from neuralspace.engine import CovalentTreeEngine
+            engine = CovalentTreeEngine()
+            tree_structure = {
+                "nodes": len(engine.nodes),
+                "root": engine.root_id,
+                "children": {
+                    node_id: node.children 
+                    for node_id, node in engine.nodes.items()
+                }
+            }
+            return {
+                "status": "executed",
+                "action": "show_tree",
+                "tree": tree_structure
+            }
+        
         # --- Unknown Command ---
         else:
+            # Use a simple fallback to suggest commands
+            suggestions = []
+            if "spawn" in command:
+                suggestions.append("Try: 'spawn branch'")
+            elif "health" in command or "status" in command:
+                suggestions.append("Try: 'health' or 'status'")
+            elif "threat" in command:
+                suggestions.append("Try: 'show threats'")
+            elif "evolve" in command:
+                suggestions.append("Try: 'evolve'")
+            else:
+                suggestions = [
+                    "Available commands:",
+                    "  - health → Show universe health",
+                    "  - spawn branch → Create a new branch",
+                    "  - show threats → Show recent threats",
+                    "  - evolve → Trigger evolution",
+                    "  - show tree → Display the tree topology"
+                ]
+            
             return {
                 "status": "unknown",
-                "message": "Command not recognized. Try: 'health', 'spawn branch', 'show threats', or 'evolve'",
+                "message": "Command not recognized.",
+                "suggestions": suggestions,
                 "received": command
             }
             
