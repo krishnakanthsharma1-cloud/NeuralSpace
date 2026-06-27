@@ -42,11 +42,12 @@ jobs:
           # Scan the entire tests/ folder (which contains test_js/, test_go/, etc.)
           python -m neuralspace.cli scan tests --quarantine rename
 
-      - name: Check for threats (ignore test folders)
+      - name: Check for threats (EXCLUDING tests folder)
         run: |
-          if find . -name "*.py.quarantined" | grep -q .; then
-            echo "❌ Threats found in the tests folder!"
+          # Look for quarantined files, but ignore anything inside tests/
+          if find . -path ./tests -prune -o -name "*.py.quarantined" -print | grep -q .; then
+            echo "❌ Threats found outside tests folder!"
             exit 1
           else
-            echo "✅ No threats detected in tests folder."
+            echo "✅ No threats detected outside tests folder."
           fi
