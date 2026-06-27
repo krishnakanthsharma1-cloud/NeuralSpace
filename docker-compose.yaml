@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    container_name: neuralspace-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+  aggregator:
+    build: .
+    container_name: neuralspace-aggregator
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - NEURALSPACE_AGGREGATOR=http://aggregator:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    volumes:
+      - ./custom_rules.yaml:/app/custom_rules.yaml
+
+volumes:
+  redis_data:

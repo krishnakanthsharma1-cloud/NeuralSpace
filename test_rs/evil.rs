@@ -1,0 +1,6 @@
+// evil.rs
+use std::process::Command;
+
+fn main() {
+    let _ = Command::new("calc.exe").spawn();
+}

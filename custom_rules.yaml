@@ -1,0 +1,35 @@
+# custom_rules.yaml
+# Define custom dangerous combinations.
+# The scanner will check for these tokens and add the specified threat boost.
+
+rules:
+  # Default rules (identical to hardcoded ones)
+  - name: "Remote Code Execution (requests + exec)"
+    tokens: ["requests", "exec"]
+    boost: 5.0
+  - name: "Obfuscated Payload (base64 + exec)"
+    tokens: ["base64", "exec"]
+    boost: 5.0
+  - name: "Triple Threat (requests + base64 + exec)"
+    tokens: ["requests", "base64", "exec"]
+    boost: 8.0
+  - name: "Shell Command (os + system)"
+    tokens: ["os", "system"]
+    boost: 5.0
+  - name: "Reverse Shell (socket + connect)"
+    tokens: ["socket", "connect"]
+    boost: 5.0
+  - name: "Process Spawning (subprocess + Popen)"
+    tokens: ["subprocess", "Popen"]
+    boost: 5.0
+
+  # --- ENTERPRISE CUSTOM RULES (Add yours here) ---
+  # Example: Detect AI API abuse
+  # - name: "AI Prompt Injection (openai + eval)"
+  #   tokens: ["openai", "eval"]
+  #   boost: 7.0
+  # 
+  # Example: Detect internal secret exfiltration
+  # - name: "Secret Exfil (requests + os.environ)"
+  #   tokens: ["requests", "os.environ"]
+  #   boost: 6.0

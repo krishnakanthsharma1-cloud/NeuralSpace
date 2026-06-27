@@ -1,0 +1,2 @@
+[console_scripts]
+neuralspace = neuralspace.cli:cli
