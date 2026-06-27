@@ -1,7 +1,7 @@
 # aggregator.py - Full version with Zero-Trust Security Mesh
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from trust_layer import TrustNode
+from neuralspace.trust_layer import TrustNode
 import os
 import json
 import hashlib

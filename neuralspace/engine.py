@@ -152,7 +152,7 @@ class CovalentTreeEngine:
                 import os
                 import sys
                 # Import the trust layer
-                from trust_layer import TrustNode
+                from neuralspace.trust_layer import TrustNode
                 
                 ext = os.path.splitext(file_id)[1].lstrip('.') if file_id else 'unknown'
                 AGGREGATOR_URL = os.environ.get("NEURALSPACE_AGGREGATOR", "http://localhost:8000")
