@@ -49,10 +49,7 @@ Unlike traditional static scanners (SAST/NGAV) that rely on rigid rule sets or g
 
 ### Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/krishnakanthsharmat-cloud/NeuralSpace.git
-cd NeuralSpace
+```Install NeuralSpace globally with just one command:"
 
-# Install in development mode (recommended)
-pip install -e .	
+bash
+pip install neuralspace-ai
