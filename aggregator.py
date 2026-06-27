@@ -1,4 +1,4 @@
-# aggregator.py - Full version with Zero-Trust Security Mesh
+# aggregator.py - Full version with Zero-Trust Security Mesh + God User
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from neuralspace.trust_layer import TrustNode
@@ -7,6 +7,7 @@ import json
 import hashlib
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from datetime import datetime
 from github import Github
@@ -48,8 +49,8 @@ DASHBOARD_HTML = """
         <div class="value" id="total">0</div>
     </div>
     <div class="card">
-        <div>Last PR Scan</div>
-        <div class="value" id="last">Waiting...</div>
+        <div>Trust Node</div>
+        <div class="value" id="trust">Loading...</div>
     </div>
     <script>
         async function update() {
@@ -57,7 +58,21 @@ DASHBOARD_HTML = """
             const data = await r.json();
             document.getElementById('total').textContent = data.threats_observed;
         }
+        async function updateTrust() {
+            try {
+                const r = await fetch('/whisper', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({command: 'health'})
+                });
+                const data = await r.json();
+                if (data.trust_node) {
+                    document.getElementById('trust').textContent = data.trust_node.substring(0, 8) + '...';
+                }
+            } catch(e) {}
+        }
         update();
+        updateTrust();
         setInterval(update, 5000);
     </script>
 </body>
@@ -282,6 +297,98 @@ async def scan_pr(payload):
         import traceback
         traceback.print_exc()
         return f"Error: {str(e)}"
+
+# --- GOD USER: Natural Language Commands ---
+@app.post("/whisper")
+async def whisper(request: Request):
+    """
+    The God User endpoint. Accept natural language commands to shape the universe.
+    
+    Commands:
+    - "health" or "status" → Show universe health
+    - "spawn branch" → Create a new branch
+    - "show threats" → Show recent threats
+    - "evolve" → Trigger an evolution cycle
+    """
+    try:
+        payload = await request.json()
+        command = payload.get("command", "").lower()
+        
+        print(f"[*] God User command: {command}")
+        
+        # --- Command: Health ---
+        if "health" in command or "status" in command:
+            return {
+                "status": "executed",
+                "action": "health",
+                "total_threats": len(threat_ledger),
+                "trust_node": TRUST_NODE.node_id,
+                "trust_score": TRUST_NODE.trust_score,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # --- Command: Spawn Branch ---
+        elif "spawn" in command and "branch" in command:
+            new_id = f"0x{int(time.time()) % 10000:04X}"
+            print(f"[*] God User: Spawning new branch {new_id}")
+            return {
+                "status": "executed",
+                "action": "spawn_branch",
+                "branch_id": new_id,
+                "message": f"🌱 Spawned new branch {new_id}"
+            }
+        
+        # --- Command: Show Threats ---
+        elif "threat" in command and ("show" in command or "list" in command or "recent" in command):
+            threats = list(threat_ledger.values())[-5:]
+            return {
+                "status": "executed",
+                "action": "show_threats",
+                "threats": threats,
+                "total_threats": len(threat_ledger),
+                "count": len(threats)
+            }
+        
+        # --- Command: Evolve ---
+        elif "evolve" in command:
+            return {
+                "status": "executed",
+                "action": "evolve",
+                "message": "🧬 Evolution cycle triggered. The universe is adapting."
+            }
+        
+        # --- Unknown Command ---
+        else:
+            return {
+                "status": "unknown",
+                "message": "Command not recognized. Try: 'health', 'spawn branch', 'show threats', or 'evolve'",
+                "received": command
+            }
+            
+    except Exception as e:
+        print(f"[!] Error: {e}")
+        return {"status": "error", "detail": str(e)}
+
+# --- Root endpoint ---
+@app.get("/")
+async def root():
+    return {
+        "message": "🧠 NeuralSpace Universe is alive!",
+        "endpoints": {
+            "health": "/health",
+            "dashboard": "/dashboard",
+            "webhook": "/webhook (POST)",
+            "report-threat": "/report-threat (POST)",
+            "whisper": "/whisper (POST) - God User commands"
+        },
+        "version": "3.0.0",
+        "features": [
+            "Zero-Trust Security Mesh",
+            "Autonomous Evolution (Anticipatory Fracturing)",
+            "Emergent Intelligence (Hive Mind)",
+            "Human-AI Symbiosis (God User)"
+        ]
+    }
 
 if __name__ == "__main__":
     import uvicorn
