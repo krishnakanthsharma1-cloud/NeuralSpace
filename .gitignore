@@ -14,4 +14,4 @@ atom_weights.pth
 security_log.txt
 .DS_Store
 neuralspace.egg-info/
-training_data/
+training_data/"neuralspace-enterprise.tar" 

