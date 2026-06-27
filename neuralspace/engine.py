@@ -54,7 +54,7 @@ class CovalentTreeEngine:
         self.logic_seed = 257
         self.sentinel_seed = 268
         self.logic_thresh = 0.2
-        self.sentinel_thresh = 0.10  # Lowered for better detection
+        self.sentinel_thresh = 0.10
         self.hive_mind = HiveMind(consensus_threshold=0.7)
         self.load_snapshot()
         self.hive_mind.register_agent(self.root_id)
@@ -138,58 +138,36 @@ class CovalentTreeEngine:
 
     def _check_known_patterns(self, code_string: str) -> tuple:
         """
-        DIRECT PRE-CHECK: Scan the raw code string for known dangerous patterns,
-        including common obfuscation techniques.
-        Returns (is_threat, reason)
+        DIRECT PRE-CHECK: Catch obfuscation and evasion patterns.
         """
-        # --- JavaScript / Node.js patterns ---
+        # --- Existing checks ---
         if 'base64' in code_string and 'eval' in code_string:
-            return (True, "base64 + eval (JavaScript obfuscated payload)")
-        
-        if 'eval' in code_string and 'Buffer.from' in code_string:
-            return (True, "eval + Buffer.from (JavaScript obfuscation)")
-        
-        if 'require' in code_string and 'eval' in code_string:
-            return (True, "require + eval (JavaScript remote code execution)")
-        
-        # --- Go patterns ---
+            return (True, "base64 + eval (obfuscated payload)")
         if 'syscall.Exec' in code_string:
             return (True, "syscall.Exec (Go shell execution)")
-        
         if 'exec.Command' in code_string:
             return (True, "exec.Command (Go shell execution)")
-        
-        if 'syscall' in code_string and 'Exec' in code_string:
-            return (True, "syscall + Exec (Go shell execution)")
-        
-        # --- Python patterns ---
         if 'exec(' in code_string and 'base64' in code_string:
             return (True, "exec + base64 (obfuscated payload)")
-        
         if 'os.system' in code_string and 'rm -rf' in code_string:
             return (True, "os.system + rm -rf (destructive command)")
-        
-        # --- INDIRECTION / EVASION PATTERNS ---
-        # 1. getattr(module, 'func')()
-        if 'getattr(' in code_string and ('exec' in code_string or 'eval' in code_string):
-            return (True, "getattr indirection (exec/eval)")
-        
-        # 2. eval(chr(97)+chr(98)+...)
-        if 'eval(' in code_string and 'chr(' in code_string:
-            return (True, "eval + chr (character obfuscation)")
-        
-        # 3. __import__('os').system(...)
-        if "__import__" in code_string and ("exec" in code_string or "system" in code_string):
-            return (True, "__import__ dynamic import")
-        
-        # 4. exec("""...""") with multiline
-        if 'exec("""' in code_string and 'base64' in code_string:
-            return (True, "exec + base64 with multiline")
-        
-        # 5. System command with string concatenation
-        if 'system(' in code_string and ('+' in code_string or 'join' in code_string):
-            return (True, "system call with string concatenation")
-        
+
+        # --- NEW: Catch getattr indirection ---
+        # This catches: getattr(os, 'sys' + 'tem'), getattr(os, 'system'), etc.
+        if 'getattr(' in code_string:
+            if 'system' in code_string or 'exec' in code_string or 'eval' in code_string:
+                return (True, "getattr indirection (targeting system/exec/eval)")
+
+        # --- NEW: Catch __import__ with system/exec ---
+        if '__import__' in code_string and ('system' in code_string or 'exec' in code_string):
+            return (True, "__import__ dynamic import with dangerous call")
+
+        # --- NEW: Catch string concatenation in dangerous calls ---
+        if ('"sys"' in code_string and '"tem"' in code_string) or ("'sys'" in code_string and "'tem'" in code_string):
+            if 'system' not in code_string:
+                if 'getattr' in code_string or 'eval' in code_string or 'exec' in code_string:
+                    return (True, "string concatenation evasion (sys+tem)")
+
         return (False, "")
 
     def process_drop(self, code_string, file_id):

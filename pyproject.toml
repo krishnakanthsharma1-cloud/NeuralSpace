@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuralspace-ai"
-version = "1.0.0"
-description = "Cognitive Code Topology Engine - Self-evolving neural security scanner"
+version = "4.0.0"
+description = "Cognitive Code Security Engine - Self-evolving, AI-powered threat detection"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
@@ -19,6 +19,12 @@ dependencies = [
     "numpy",
     "pandas",
     "statsmodels",
+    "fastapi",
+    "uvicorn",
+    "requests",
+    "PyGithub",
+    "pyyaml",
+    "cryptography"
 ]
 
 [project.scripts]
@@ -26,4 +32,7 @@ neuralspace = "neuralspace.cli:cli"
 
 [tool.setuptools.packages.find]
 include = ["neuralspace*"]
-exclude = ["test_codebase*", "training_data*"]
+exclude = ["test_codebase*", "training_data*", "test_*"]
+
+[tool.setuptools.package-data]
+neuralspace = ["atom_weights.pth", "custom_rules.yaml"]
