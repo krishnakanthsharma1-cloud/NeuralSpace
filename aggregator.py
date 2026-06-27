@@ -1,12 +1,12 @@
-# aggregator.py - Full version with PR scanning and commenting
+# aggregator.py - Full version with Zero-Trust Security Mesh
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+from trust_layer import TrustNode
 import os
 import json
 import hashlib
 import subprocess
 import tempfile
-import shutil
 from pathlib import Path
 from datetime import datetime
 from github import Github
@@ -16,6 +16,10 @@ app = FastAPI(title="NeuralSpace GitHub Integration")
 # --- Configuration ---
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
+
+# --- Initialize Trust Node ---
+TRUST_NODE = TrustNode()
+print(f"[*] Trust Node initialized. Node ID: {TRUST_NODE.node_id}")
 
 # --- In-memory ledger ---
 threat_ledger = {}
@@ -64,19 +68,62 @@ DASHBOARD_HTML = """
 async def dashboard():
     return DASHBOARD_HTML
 
-# --- Report Threat ---
+# --- Report Threat (Trusted) ---
 @app.post("/report-threat")
 async def report_threat(request: Request):
+    """Receive and verify signed threat reports."""
     try:
         payload = await request.json()
-        pattern = str(payload.get("combo_hits", []))
-        threat_id = hashlib.md5(pattern.encode()).hexdigest()[:8]
+        
+        # Check if the report is signed
+        if "signature" not in payload or "node_id" not in payload:
+            return {"status": "error", "message": "Unsigned report rejected"}
+        
+        # Verify the signature
+        if not TRUST_NODE.verify_report(payload):
+            # Decrease trust for this node
+            TRUST_NODE.update_trust(payload["node_id"], False)
+            return {"status": "rejected", "message": "Invalid signature"}
+        
+        # Extract the actual report
+        report = payload["report"]
+        node_id = payload["node_id"]
+        
+        # Check trust score
+        trust_score = TRUST_NODE.get_trust_score(node_id)
+        if trust_score < 0.3:
+            return {"status": "rejected", "message": f"Low trust score: {trust_score:.2f}"}
+        
+        # Process the threat
+        pattern_key = str(report.get("combo_hits", []))
+        threat_id = hashlib.md5(pattern_key.encode()).hexdigest()[:8]
+        
         if threat_id not in threat_ledger:
-            threat_ledger[threat_id] = {"pattern": pattern, "count": 0}
+            threat_ledger[threat_id] = {
+                "pattern": pattern_key,
+                "count": 0,
+                "first_seen": datetime.now().isoformat(),
+                "node_id": node_id,
+                "trust_score": trust_score
+            }
+        
         threat_ledger[threat_id]["count"] += 1
-        return {"status": "recorded"}
-    except:
-        return {"status": "error"}
+        
+        # Update trust (verified report)
+        TRUST_NODE.update_trust(node_id, True)
+        
+        print(f"[*] Threat from trusted node {node_id[:8]} recorded. Trust: {trust_score:.2f}")
+        
+        return {
+            "status": "recorded",
+            "threat_id": threat_id,
+            "trust_score": trust_score,
+            "total_threats": len(threat_ledger)
+        }
+        
+    except Exception as e:
+        print(f"[!] Error: {e}")
+        return {"status": "error", "detail": str(e)}
 
 # --- Main Webhook ---
 @app.post("/webhook")

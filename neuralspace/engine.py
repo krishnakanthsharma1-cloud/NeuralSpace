@@ -145,16 +145,20 @@ class CovalentTreeEngine:
         else:
             trace.append("✅ ALLOWED: File passed all checks.")
         
-        # --- FEDERATED INTELLIGENCE: Auto-report blocked threats ---
+        # --- FEDERATED INTELLIGENCE: Auto-report blocked threats (SIGNED) ---
         if status == "BLOCKED":
             try:
                 import requests
                 import os
+                import sys
+                # Import the trust layer
+                from trust_layer import TrustNode
+                
                 ext = os.path.splitext(file_id)[1].lstrip('.') if file_id else 'unknown'
                 AGGREGATOR_URL = os.environ.get("NEURALSPACE_AGGREGATOR", "http://localhost:8000")
                 
-                payload = {
-                    "file_hash": hashlib.md5(code_string.encode()).hexdigest(),
+                # Create the report
+                report = {
                     "combo_hits": hits,
                     "sentinel_score": s_score,
                     "logic_score": l_score,
@@ -162,10 +166,20 @@ class CovalentTreeEngine:
                     "language": ext,
                     "timestamp": str(time.time())
                 }
-                # Async send (non-blocking)
-                requests.post(f"{AGGREGATOR_URL}/report-threat", json=payload, timeout=1)
-            except Exception:
-                pass  # Silent fail if aggregator is down
+                
+                # Sign the report
+                trust_node = TrustNode()
+                signed_report = trust_node.sign_report(report)
+                
+                # Send signed report
+                requests.post(
+                    f"{AGGREGATOR_URL}/report-threat",
+                    json=signed_report,
+                    timeout=2
+                )
+                print(f"[*] Signed threat report sent to aggregator")
+            except Exception as e:
+                print(f"[!] Reporting failed: {e}")
         
         self.save_snapshot()
         return status, s_score, l_score, target_node.id, trace
