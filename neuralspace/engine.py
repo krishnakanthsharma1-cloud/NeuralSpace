@@ -6,6 +6,7 @@ import math
 from neuralspace.tokenizer import code_to_512vec, code_to_512vec_with_language
 from neuralspace.atoms import PureNeuralAtom
 from neuralspace.hive_mind import HiveMind
+from neuralspace.data_flow import analyze_taint   # <-- NEW import
 
 # --- MATH HELPERS ---
 def cosine_similarity(v1, v2):
@@ -141,7 +142,6 @@ class CovalentTreeEngine:
         DIRECT PRE-CHECK: Catch obfuscation and evasion patterns.
         This acts as a safety net in addition to the neural network.
         """
-        # --- Existing checks ---
         if 'base64' in code_string and 'eval' in code_string:
             return (True, "base64 + eval (obfuscated payload)")
         if 'syscall.Exec' in code_string:
@@ -193,7 +193,7 @@ class CovalentTreeEngine:
             print(f"    [PRE-CHECK] Dangerous pattern detected: {reason}")
             return "BLOCKED", 1.0, 0.0, "0x0000", [f"🔴 PRE-CHECK: {reason}"]
         
-        # --- Normal pipeline (neural + taint) ---
+        # --- Normal pipeline ---
         vec = code_to_512vec_with_language(code_string, file_id)
         target_node = self.route_recursive(self.root_id, vec)
         target_node = self.anticipate_and_fracture(target_node, vec)
@@ -214,7 +214,7 @@ class CovalentTreeEngine:
         else:
             trace.append("✅ No dangerous combinations detected.")
         
-        # --- Taint analysis ---
+        # --- TAINT ANALYSIS (AST-based) ---
         try:
             from neuralspace.ast_analyzer import code_to_features_with_taint
             ext = os.path.splitext(file_id)[1].lower() if '.' in file_id else '.py'
@@ -228,7 +228,17 @@ class CovalentTreeEngine:
         except Exception as e:
             trace.append(f"[!] Taint analysis skipped: {e}")
             print(f"    [DEBUG] Taint analysis error: {e}")
-        
+
+        # --- DATA-FLOW ANALYSIS (True taint propagation) ---
+        try:
+            df_results = analyze_taint(code_string)
+            if df_results["has_tainted_sink"]:
+                trace.append("🌊 DATA-FLOW: Tainted data reaches dangerous sink!")
+                for flow in df_results["taint_flow"]:
+                    trace.append(f"   - {flow[0]} → {flow[1]}")
+        except Exception as e:
+            print(f"[!] Data-flow analysis error: {e}")
+
         trace.append(f"📊 Sentinel Score: {s_score:.4f} (Threshold: {self.sentinel_thresh})")
         trace.append(f"📊 Logic Score:    {l_score:.4f} (Threshold: {self.logic_thresh})")
         

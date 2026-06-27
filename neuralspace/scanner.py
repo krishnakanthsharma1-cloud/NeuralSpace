@@ -69,7 +69,7 @@ class SecurityScanner:
         except ValueError:
             file_id = file_path.name
 
-        status, s_score, l_score, node_id, trace = self.engine.process_drop_explain(content, file_id)
+        status, s_score, l_score, node_id, trace = self.engine.process_drop_explain(content, str(file_path))
 
         log_entry = f"[{status}] {file_id} | Node:{node_id} | S:{s_score:.4f} | L:{l_score:.4f}"
         print(log_entry)
