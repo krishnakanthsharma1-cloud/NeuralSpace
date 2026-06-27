@@ -13,7 +13,7 @@ except ImportError:
     print("[!] Taint analyzer not available. Falling back to regex tokenizer.")
 
 # ======================================================================
-# FALLBACK: REGEX-BASED TOKENIZER (used if taint analysis is unavailable)
+# FALLBACK: REGEX-BASED TOKENIZER (with explicit pattern detection)
 # ======================================================================
 def code_to_512vec(code_string: str):
     counts = [0.0] * 512
@@ -33,7 +33,7 @@ def code_to_512vec(code_string: str):
             idx = 160 + h_base
         counts[idx] += 1.0
 
-    # --- Hard‑coded combination features (fallback) ---
+    # --- Hard‑coded combination features (from tokens) ---
     token_set = set(tokens)
 
     has_requests = 'requests' in token_set
@@ -47,6 +47,7 @@ def code_to_512vec(code_string: str):
     has_connect = 'connect' in token_set
     has_popen = 'Popen' in token_set
 
+    # Python/JS combinations
     if has_requests and has_exec:
         counts[490] += 5.0
     if has_base64 and has_exec:
@@ -59,6 +60,31 @@ def code_to_512vec(code_string: str):
         counts[494] += 5.0
     if has_subprocess and has_popen:
         counts[495] += 5.0
+    if has_base64 and has_eval:
+        counts[496] += 6.0
+    if has_eval and 'require' in token_set:
+        counts[497] += 4.0
+
+    # --- EXPLICIT PATTERN DETECTION (with HIGH BOOST to guarantee detection) ---
+    # 1. JavaScript: base64 + eval (direct string match) – BOOST 20.0
+    if 'base64' in code_string and 'eval' in code_string:
+        counts[496] += 20.0  # Increased from 10.0 to 20.0
+
+    # 2. Go: syscall.Exec or exec.Command – BOOST 20.0
+    if 'syscall.Exec' in code_string or 'exec.Command' in code_string:
+        counts[498] += 20.0  # Increased from 10.0 to 20.0
+
+    # 3. eval + Buffer.from (JavaScript obfuscation) – BOOST 20.0
+    if 'eval' in code_string and 'Buffer.from' in code_string:
+        counts[499] += 20.0  # Increased from 10.0 to 20.0
+
+    # 4. JavaScript require + eval – BOOST 15.0
+    if 'require' in code_string and 'eval' in code_string:
+        counts[497] += 15.0
+
+    # 5. Go syscall import + Exec – BOOST 20.0
+    if 'syscall' in code_string and 'Exec' in code_string:
+        counts[498] += 20.0
 
     # --- Byte trigram hashing ---
     raw = code_string.encode('utf-8', errors='replace')
@@ -73,14 +99,9 @@ def code_to_512vec(code_string: str):
     return [v / norm for v in vec] if norm > 0 else vec
 
 # ======================================================================
-# TAINT‑AWARE TOKENIZER (uses taint analysis + regex fallback)
+# TAINT‑AWARE TOKENIZER
 # ======================================================================
 def code_to_512vec_with_taint(code_string: str, file_extension: str = '.py', use_taint: bool = True):
-    """
-    Convert code to a 512‑dimension vector, optionally using taint analysis.
-    The `file_extension` (e.g. '.py', '.js') is passed to the taint analyzer.
-    """
-    # Get taint features if available and requested
     if HAS_TAINT and use_taint:
         taint_features = code_to_features_with_taint(code_string, file_extension)
     else:
@@ -94,17 +115,15 @@ def code_to_512vec_with_taint(code_string: str, file_extension: str = '.py', use
             "sink_list": []
         }
 
-    # Get the base vector via the regex tokenizer
     base_vec = code_to_512vec(code_string)
 
-    # --- Add taint features to the vector (indices 480-489) ---
+    # Add taint features
     if taint_features["has_tainted_exec"]:
         base_vec[480] += 8.0
     if taint_features["has_tainted_eval"]:
         base_vec[481] += 8.0
     if taint_features["has_tainted_system"]:
         base_vec[482] += 8.0
-
     if taint_features["has_tainted_sink"]:
         base_vec[483] += 5.0
 
@@ -114,29 +133,22 @@ def code_to_512vec_with_taint(code_string: str, file_extension: str = '.py', use
     taint_count = min(taint_features["taint_count"], 5)
     base_vec[485] += taint_count * 2.0
 
-    # Re‑normalize the vector
     norm = math.sqrt(sum(v * v for v in base_vec))
     if norm > 0:
         return [v / norm for v in base_vec]
     return base_vec
 
 # ======================================================================
-# LANGUAGE‑AWARE ENTRY POINT (used by engine.py)
+# LANGUAGE‑AWARE ENTRY POINT
 # ======================================================================
 def code_to_512vec_with_language(code_string: str, file_path: str):
-    """
-    Detect file extension and route to the appropriate tokenizer.
-    This is called from the scanner.
-    """
     ext = Path(file_path).suffix.lower()
-    # Always use the taint‑aware tokenizer (which falls back to regex if needed)
     return code_to_512vec_with_taint(code_string, ext, use_taint=True)
 
 # ======================================================================
-# HELPERS FOR EXPLAINABILITY (kept for compatibility)
+# HELPERS FOR EXPLAINABILITY
 # ======================================================================
 def get_combination_hits(code_string: str):
-    """Scans the code for dangerous combinations and returns human‑readable explanations."""
     tokens = re.findall(r'\b\w+\b|[^\w\s]', code_string)
     token_set = set(tokens)
 
@@ -164,5 +176,15 @@ def get_combination_hits(code_string: str):
         hits.append("socket + connect (potential reverse shell)")
     if has_subprocess and has_popen:
         hits.append("subprocess + Popen (process spawning)")
+    if has_base64 and has_eval:
+        hits.append("base64 + eval (potential obfuscated payload)")
+    if has_eval and 'require' in token_set:
+        hits.append("eval + require (potential remote code execution)")
+
+    # Explicit pattern hits
+    if 'syscall.Exec' in code_string or 'exec.Command' in code_string:
+        hits.append("syscall.Exec or exec.Command (Go shell execution)")
+    if 'eval' in code_string and 'Buffer.from' in code_string:
+        hits.append("eval + Buffer.from (JavaScript obfuscation)")
 
     return hits

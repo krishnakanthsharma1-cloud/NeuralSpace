@@ -1,4 +1,4 @@
-# aggregator.py - Full version with Zero-Trust Security Mesh + God User
+# aggregator.py - Full version with Zero-Trust Security Mesh + Ollama Intent Parsing (Fixed Timeout)
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from neuralspace.trust_layer import TrustNode
@@ -8,6 +8,7 @@ import hashlib
 import subprocess
 import tempfile
 import time
+import requests
 from pathlib import Path
 from datetime import datetime
 from github import Github
@@ -17,6 +18,8 @@ app = FastAPI(title="NeuralSpace GitHub Integration")
 # --- Configuration ---
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "phi3:mini")
 
 # --- Initialize Trust Node ---
 TRUST_NODE = TrustNode()
@@ -24,6 +27,11 @@ print(f"[*] Trust Node initialized. Node ID: {TRUST_NODE.node_id}")
 
 # --- In-memory ledger ---
 threat_ledger = {}
+
+# --- Federated Learning Storage ---
+global_model_weights = {}
+global_model_version = 0
+federated_updates = []
 
 # --- Health Check ---
 @app.get("/health")
@@ -90,26 +98,19 @@ async def report_threat(request: Request):
     try:
         payload = await request.json()
         
-        # Check if the report is signed
         if "signature" not in payload or "node_id" not in payload:
             return {"status": "error", "message": "Unsigned report rejected"}
         
-        # Verify the signature
         if not TRUST_NODE.verify_report(payload):
-            # Decrease trust for this node
-            TRUST_NODE.update_trust(payload["node_id"], False)
             return {"status": "rejected", "message": "Invalid signature"}
         
-        # Extract the actual report
         report = payload["report"]
         node_id = payload["node_id"]
         
-        # Check trust score
         trust_score = TRUST_NODE.get_trust_score(node_id)
         if trust_score < 0.3:
             return {"status": "rejected", "message": f"Low trust score: {trust_score:.2f}"}
         
-        # Process the threat
         pattern_key = str(report.get("combo_hits", []))
         threat_id = hashlib.md5(pattern_key.encode()).hexdigest()[:8]
         
@@ -123,9 +124,6 @@ async def report_threat(request: Request):
             }
         
         threat_ledger[threat_id]["count"] += 1
-        
-        # Update trust (verified report)
-        TRUST_NODE.update_trust(node_id, True)
         
         print(f"[*] Threat from trusted node {node_id[:8]} recorded. Trust: {trust_score:.2f}")
         
@@ -165,7 +163,6 @@ async def webhook(request: Request):
             print(f"[*] PR #{pr_number} in {repo_name}")
             print(f"[*] Action: {action}, Branch: {pr_head_ref}")
             
-            # Only scan on opened, synchronize, or reopened
             if action in ["opened", "synchronize", "reopened"]:
                 result = await scan_pr(payload)
                 return {"status": "scanned", "result": result}
@@ -212,11 +209,9 @@ async def scan_pr(payload):
             
             print("[*] Clone successful")
             
-            # Get changed files
             changed_files = [f.filename for f in pr.get_files()]
             print(f"[*] Changed files: {changed_files}")
             
-            # Import scanner
             import sys
             sys.path.insert(0, os.getcwd())
             from neuralspace.engine import CovalentTreeEngine
@@ -278,7 +273,6 @@ async def scan_pr(payload):
             
             comment_text = "\n".join(comment_lines)
             
-            # Post comment
             print(f"[*] Posting comment to PR #{pr_number}")
             existing_comments = pr.get_issue_comments()
             for comment in existing_comments:
@@ -298,67 +292,143 @@ async def scan_pr(payload):
         traceback.print_exc()
         return f"Error: {str(e)}"
 
-# --- GOD USER: Natural Language Commands ---
+# =====================================================================
+# 🧠 OLLAMA INTENT PARSER (Natural Language Understanding)
+# =====================================================================
+
+def parse_command_with_ollama(command: str):
+    """
+    Send the user's command to Ollama for intent parsing.
+    Returns a dict with 'action' and 'target'.
+    """
+    system_prompt = (
+        "You are a command parser for an AI security universe. "
+        "Extract the primary action and target from the following user command. "
+        "Valid actions: HEALTH, SPAWN_BRANCH, SHOW_THREATS, EVOLVE, SHOW_TREE. "
+        "Return ONLY valid JSON in this exact format: {\"action\": \"ACTION_NAME\", \"target\": \"target_text\"}. "
+        "If the command is unclear, set action to 'UNKNOWN'."
+    )
+    
+    payload = {
+        "model": OLLAMA_MODEL,
+        "prompt": f"{system_prompt}\n\nUser command: {command}\n\nJSON response:",
+        "stream": False
+    }
+    
+    try:
+        # Increased timeout to 30 seconds for LLM inference
+        response = requests.post(
+            f"{OLLAMA_URL}/api/generate",
+            json=payload,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            raw_response = result.get("response", "")
+            print(f"[*] Ollama raw response: {raw_response}")
+            
+            # Try to extract JSON from the response
+            try:
+                start = raw_response.find('{')
+                end = raw_response.rfind('}') + 1
+                if start != -1 and end > start:
+                    json_str = raw_response[start:end]
+                    parsed = json.loads(json_str)
+                    if "action" in parsed:
+                        return parsed
+            except json.JSONDecodeError:
+                pass
+            
+            # Fallback: extract action words from the raw response
+            text = raw_response.lower()
+            if "health" in text or "status" in text:
+                return {"action": "HEALTH", "target": ""}
+            elif "spawn" in text and "branch" in text:
+                return {"action": "SPAWN_BRANCH", "target": ""}
+            elif "threat" in text:
+                return {"action": "SHOW_THREATS", "target": ""}
+            elif "evolve" in text:
+                return {"action": "EVOLVE", "target": ""}
+            elif "tree" in text or "topology" in text:
+                return {"action": "SHOW_TREE", "target": ""}
+        
+    except requests.exceptions.Timeout:
+        print("[!] Ollama timeout (30s). Falling back to string matching.")
+    except Exception as e:
+        print(f"[!] Ollama error: {e}")
+    
+    # Fallback: use simple string matching
+    return fallback_parse(command)
+
+def fallback_parse(command: str):
+    """Fallback parser if Ollama is unavailable."""
+    command_lower = command.lower()
+    if "health" in command_lower or "status" in command_lower:
+        return {"action": "HEALTH", "target": ""}
+    elif "spawn" in command_lower and "branch" in command_lower:
+        return {"action": "SPAWN_BRANCH", "target": ""}
+    elif "threat" in command_lower and ("show" in command_lower or "list" in command_lower):
+        return {"action": "SHOW_THREATS", "target": ""}
+    elif "evolve" in command_lower:
+        return {"action": "EVOLVE", "target": ""}
+    elif "tree" in command_lower or "topology" in command_lower:
+        return {"action": "SHOW_TREE", "target": ""}
+    else:
+        return {"action": "UNKNOWN", "target": command_lower}
+
+# =====================================================================
+# 🗣️ GOD USER: Natural Language Commands (Using Ollama)
+# =====================================================================
+
 @app.post("/whisper")
 async def whisper(request: Request):
     """
-    The God User endpoint. Accept natural language commands to shape the universe.
-    
-    Commands:
-    - "health" or "status" → Show universe health
-    - "spawn branch" → Create a new branch
-    - "show threats" → Show recent threats
-    - "evolve" → Trigger an evolution cycle
+    The God User endpoint. Accept natural language commands.
+    Uses Ollama for real intent parsing.
     """
     try:
         payload = await request.json()
-        command = payload.get("command", "").lower().strip()
+        command = payload.get("command", "").strip()
         
         print(f"[*] God User command: {command}")
         
-        # --- REAL INTENT PARSING ---
-        # We use a combination of keyword matching and simple NLP
+        # Parse the command using Ollama
+        parsed = parse_command_with_ollama(command)
+        action = parsed.get("action", "UNKNOWN")
+        target = parsed.get("target", "")
         
-        # Extract the "action" and "target" from the command
-        words = command.split()
+        print(f"[*] Parsed intent: {action} (Target: {target})")
         
-        # --- Health Check ---
-        if any(w in command for w in ["health", "status", "universe", "alive"]):
+        # --- Execute the action ---
+        if action == "HEALTH":
             return {
                 "status": "executed",
                 "action": "health",
                 "total_threats": len(threat_ledger),
                 "trust_node": TRUST_NODE.node_id,
                 "trust_score": TRUST_NODE.trust_score,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "parsed_from": command
             }
         
-        # --- Spawn Branch ---
-        elif "spawn" in command and "branch" in command:
-            import time
-            new_id = f"0x{int(time.time()) % 10000:04X}"
-            
-            # Actually create a new branch in the tree
-            # We need to import the engine and create a real node
+        elif action == "SPAWN_BRANCH":
             import sys
-            sys.path.insert(0, os.getcwd())
             from neuralspace.engine import FractalNode, quantize_int8, CovalentTreeEngine
             
-            # Load the tree
+            new_id = f"0x{int(time.time()) % 10000:04X}"
             engine = CovalentTreeEngine()
             root_node = engine.nodes[engine.root_id]
             
-            # Create a new node
             new_node = FractalNode(
                 node_id=new_id,
                 parent_id=root_node.id,
                 logic_seed=engine.logic_seed + len(engine.nodes),
                 sent_seed=engine.sentinel_seed + len(engine.nodes),
-                q_latent=quantize_int8([0.0] * 512),  # Default latent vector
+                q_latent=quantize_int8([0.0] * 512),
                 depth=1
             )
             
-            # Add to tree
             engine.nodes[new_id] = new_node
             root_node.children.append(new_id)
             engine.save_snapshot()
@@ -368,32 +438,51 @@ async def whisper(request: Request):
                 "status": "executed",
                 "action": "spawn_branch",
                 "branch_id": new_id,
-                "message": f"🌱 Spawned new branch {new_id}"
+                "message": f"🌱 Spawned new branch {new_id}",
+                "parsed_from": command
             }
         
-        # --- Show Threats ---
-        elif "threat" in command and any(w in command for w in ["show", "list", "recent"]):
+        elif action == "SHOW_THREATS":
             threats = list(threat_ledger.values())[-5:]
             return {
                 "status": "executed",
                 "action": "show_threats",
                 "threats": threats,
                 "total_threats": len(threat_ledger),
-                "count": len(threats)
+                "count": len(threats),
+                "parsed_from": command
             }
         
-        # --- Evolve ---
-        elif "evolve" in command:
+        elif action == "EVOLVE":
+            import sys
+            from neuralspace.engine import FractalNode, quantize_int8, CovalentTreeEngine
+            
+            engine = CovalentTreeEngine()
+            new_id = f"0x{int(time.time()) % 10000:04X}"
+            root_node = engine.nodes[engine.root_id]
+            
+            new_node = FractalNode(
+                node_id=new_id,
+                parent_id=root_node.id,
+                logic_seed=engine.logic_seed + len(engine.nodes) + 100,
+                sent_seed=engine.sentinel_seed + len(engine.nodes) + 100,
+                q_latent=quantize_int8([0.0] * 512),
+                depth=1
+            )
+            
+            engine.nodes[new_id] = new_node
+            root_node.children.append(new_id)
+            engine.save_snapshot()
+            
             return {
                 "status": "executed",
                 "action": "evolve",
-                "message": "🧬 Evolution cycle triggered. The universe is adapting."
+                "message": f"🧬 Evolution cycle triggered. New branch {new_id} spawned.",
+                "parsed_from": command
             }
         
-        # --- Command: Show Tree ---
-        elif "tree" in command or "topology" in command:
+        elif action == "SHOW_TREE":
             import sys
-            sys.path.insert(0, os.getcwd())
             from neuralspace.engine import CovalentTreeEngine
             engine = CovalentTreeEngine()
             tree_structure = {
@@ -407,41 +496,101 @@ async def whisper(request: Request):
             return {
                 "status": "executed",
                 "action": "show_tree",
-                "tree": tree_structure
+                "tree": tree_structure,
+                "parsed_from": command
             }
         
-        # --- Unknown Command ---
         else:
-            # Use a simple fallback to suggest commands
-            suggestions = []
-            if "spawn" in command:
-                suggestions.append("Try: 'spawn branch'")
-            elif "health" in command or "status" in command:
-                suggestions.append("Try: 'health' or 'status'")
-            elif "threat" in command:
-                suggestions.append("Try: 'show threats'")
-            elif "evolve" in command:
-                suggestions.append("Try: 'evolve'")
-            else:
-                suggestions = [
-                    "Available commands:",
-                    "  - health → Show universe health",
-                    "  - spawn branch → Create a new branch",
-                    "  - show threats → Show recent threats",
-                    "  - evolve → Trigger evolution",
-                    "  - show tree → Display the tree topology"
-                ]
-            
             return {
                 "status": "unknown",
-                "message": "Command not recognized.",
-                "suggestions": suggestions,
-                "received": command
+                "message": "Command not recognized. Try: 'health', 'spawn branch', 'show threats', 'evolve', or 'show tree'",
+                "received": command,
+                "parsed": parsed
             }
             
     except Exception as e:
         print(f"[!] Error: {e}")
         return {"status": "error", "detail": str(e)}
+
+# =====================================================================
+# 🌐 FEDERATED LEARNING ENDPOINTS
+# =====================================================================
+
+@app.post("/federated/update")
+async def federated_update(request: Request):
+    """Receive a weight update from a node."""
+    global global_model_version
+    
+    try:
+        payload = await request.json()
+        node_id = payload.get("node_id", "unknown")
+        delta = payload.get("delta", {})
+        model_version = payload.get("model_version", 0)
+        
+        federated_updates.append({
+            "node_id": node_id,
+            "timestamp": time.time(),
+            "delta": delta,
+            "model_version": model_version
+        })
+        
+        print(f"[*] Federated update from node {node_id[:8]}")
+        
+        # If we have enough updates, aggregate them
+        if len(federated_updates) >= 3:
+            result = aggregate_updates()
+            if result:
+                global_model_weights = result["weights"]
+                global_model_version += 1
+                print(f"[*] Global model version {global_model_version} updated!")
+                federated_updates.clear()
+        
+        return {
+            "status": "received",
+            "new_version": global_model_version
+        }
+        
+    except Exception as e:
+        print(f"[!] Federated update error: {e}")
+        return {"status": "error", "detail": str(e)}
+
+@app.get("/federated/global")
+async def get_global_model():
+    """Retrieve the latest global model weights."""
+    return {
+        "version": global_model_version,
+        "weights": global_model_weights,
+        "total_updates": len(federated_updates)
+    }
+
+def aggregate_updates():
+    """Aggregate weight updates using FedAvg."""
+    if not federated_updates:
+        return None
+    
+    try:
+        import numpy as np
+        all_deltas = [u["delta"] for u in federated_updates]
+        aggregated = {}
+        for delta in all_deltas:
+            for name, values in delta.items():
+                if name not in aggregated:
+                    aggregated[name] = []
+                aggregated[name].append(values)
+        
+        result = {}
+        for name, values_list in aggregated.items():
+            avg = np.mean(values_list, axis=0)
+            result[name] = avg.tolist()
+        
+        return {
+            "weights": result,
+            "num_nodes": len(federated_updates)
+        }
+        
+    except Exception as e:
+        print(f"[!] Aggregation failed: {e}")
+        return None
 
 # --- Root endpoint ---
 @app.get("/")
@@ -453,14 +602,17 @@ async def root():
             "dashboard": "/dashboard",
             "webhook": "/webhook (POST)",
             "report-threat": "/report-threat (POST)",
-            "whisper": "/whisper (POST) - God User commands"
+            "whisper": "/whisper (POST) - God User commands",
+            "federated/update": "/federated/update (POST)",
+            "federated/global": "/federated/global (GET)"
         },
-        "version": "3.0.0",
+        "version": "4.0.0",
         "features": [
-            "Zero-Trust Security Mesh",
+            "Zero-Trust Security Mesh (RSA + PKI)",
             "Autonomous Evolution (Anticipatory Fracturing)",
             "Emergent Intelligence (Hive Mind)",
-            "Human-AI Symbiosis (God User)"
+            "Human-AI Symbiosis (God User)",
+            "Federated Learning (FedAvg)"
         ]
     }
 

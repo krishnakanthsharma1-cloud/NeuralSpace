@@ -54,7 +54,7 @@ class CovalentTreeEngine:
         self.logic_seed = 257
         self.sentinel_seed = 268
         self.logic_thresh = 0.2
-        self.sentinel_thresh = 0.25
+        self.sentinel_thresh = 0.10  # Lowered for better detection
         self.hive_mind = HiveMind(consensus_threshold=0.7)
         self.load_snapshot()
         self.hive_mind.register_agent(self.root_id)
@@ -136,6 +136,62 @@ class CovalentTreeEngine:
             self.hive_mind.submit_vote(node_id, s_score, confidence)
         return self.hive_mind.get_consensus(agent_ids)
 
+    def _check_known_patterns(self, code_string: str) -> tuple:
+        """
+        DIRECT PRE-CHECK: Scan the raw code string for known dangerous patterns,
+        including common obfuscation techniques.
+        Returns (is_threat, reason)
+        """
+        # --- JavaScript / Node.js patterns ---
+        if 'base64' in code_string and 'eval' in code_string:
+            return (True, "base64 + eval (JavaScript obfuscated payload)")
+        
+        if 'eval' in code_string and 'Buffer.from' in code_string:
+            return (True, "eval + Buffer.from (JavaScript obfuscation)")
+        
+        if 'require' in code_string and 'eval' in code_string:
+            return (True, "require + eval (JavaScript remote code execution)")
+        
+        # --- Go patterns ---
+        if 'syscall.Exec' in code_string:
+            return (True, "syscall.Exec (Go shell execution)")
+        
+        if 'exec.Command' in code_string:
+            return (True, "exec.Command (Go shell execution)")
+        
+        if 'syscall' in code_string and 'Exec' in code_string:
+            return (True, "syscall + Exec (Go shell execution)")
+        
+        # --- Python patterns ---
+        if 'exec(' in code_string and 'base64' in code_string:
+            return (True, "exec + base64 (obfuscated payload)")
+        
+        if 'os.system' in code_string and 'rm -rf' in code_string:
+            return (True, "os.system + rm -rf (destructive command)")
+        
+        # --- INDIRECTION / EVASION PATTERNS ---
+        # 1. getattr(module, 'func')()
+        if 'getattr(' in code_string and ('exec' in code_string or 'eval' in code_string):
+            return (True, "getattr indirection (exec/eval)")
+        
+        # 2. eval(chr(97)+chr(98)+...)
+        if 'eval(' in code_string and 'chr(' in code_string:
+            return (True, "eval + chr (character obfuscation)")
+        
+        # 3. __import__('os').system(...)
+        if "__import__" in code_string and ("exec" in code_string or "system" in code_string):
+            return (True, "__import__ dynamic import")
+        
+        # 4. exec("""...""") with multiline
+        if 'exec("""' in code_string and 'base64' in code_string:
+            return (True, "exec + base64 with multiline")
+        
+        # 5. System command with string concatenation
+        if 'system(' in code_string and ('+' in code_string or 'join' in code_string):
+            return (True, "system call with string concatenation")
+        
+        return (False, "")
+
     def process_drop(self, code_string, file_id):
         vec = code_to_512vec_with_language(code_string, file_id)
         target_node = self.route_recursive(self.root_id, vec)
@@ -152,7 +208,14 @@ class CovalentTreeEngine:
 
     def process_drop_explain(self, code_string, file_id):
         """Runs the engine and returns a detailed decision trace."""
-        # --- USE LANGUAGE-AWARE TOKENIZER ---
+        
+        # --- DIRECT PRE-CHECK: Check for known dangerous patterns ---
+        is_threat, reason = self._check_known_patterns(code_string)
+        if is_threat:
+            print(f"    [PRE-CHECK] Dangerous pattern detected: {reason}")
+            return "BLOCKED", 1.0, 0.0, "0x0000", [f"🔴 PRE-CHECK: {reason}"]
+        
+        # --- Otherwise, run the normal pipeline ---
         vec = code_to_512vec_with_language(code_string, file_id)
         target_node = self.route_recursive(self.root_id, vec)
         target_node = self.anticipate_and_fracture(target_node, vec)
@@ -186,7 +249,8 @@ class CovalentTreeEngine:
                     trace.append(f"   - {flow[0]} → {flow[1]}")
         except Exception as e:
             trace.append(f"[!] Taint analysis skipped: {e}")
-            print(f"    [DEBUG] Taint analysis error: {e}")        
+            print(f"    [DEBUG] Taint analysis error: {e}")
+        
         trace.append(f"📊 Sentinel Score: {s_score:.4f} (Threshold: {self.sentinel_thresh})")
         trace.append(f"📊 Logic Score:    {l_score:.4f} (Threshold: {self.logic_thresh})")
         
