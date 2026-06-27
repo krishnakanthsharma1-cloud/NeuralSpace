@@ -32,6 +32,7 @@ class FractalNode:
         self.last_accessed = time.time()
         self.logic_atom = PureNeuralAtom(self.logic_seed)
         self.sent_atom = PureNeuralAtom(self.sent_seed)
+        self.history = []  # Store recent vectors for drift velocity calculation
 
     def to_dict(self):
         return {
@@ -91,6 +92,56 @@ class CovalentTreeEngine:
             return self.route_recursive(best_child_id, vec)
         return node
 
+    def calculate_drift_velocity(self, node, vec):
+        """Calculate how fast the code is changing (drift velocity)."""
+        # Store the current vector
+        node.history.append(vec)
+        
+        # Keep only last 10 vectors
+        if len(node.history) > 10:
+            node.history.pop(0)
+        
+        # If we have less than 2 points, no velocity yet
+        if len(node.history) < 2:
+            return 0.0
+        
+        # Calculate the average change between consecutive vectors
+        total_drift = 0.0
+        for i in range(1, len(node.history)):
+            sim = cosine_similarity(node.history[i-1], node.history[i])
+            drift = 1.0 - sim
+            total_drift += drift
+        
+        return total_drift / (len(node.history) - 1)
+    
+    def anticipate_and_fracture(self, node, vec):
+        """Predict future drift and proactively spawn branches."""
+        drift_velocity = self.calculate_drift_velocity(node, vec)
+        
+        # If drift velocity is high, spawn a child preemptively
+        if drift_velocity > 0.5 and node.depth < self.max_depth:
+            print(f"    [ARCHITECT] High drift velocity detected: {drift_velocity:.2f}")
+            print(f"    [ARCHITECT] Anticipatory fracture! Spawning new branch...")
+            
+            # Create new child node
+            new_id = f"0x{len(self.nodes):04X}"
+            new_node = FractalNode(
+                node_id=new_id,
+                parent_id=node.id,
+                logic_seed=self.logic_seed + len(self.nodes),
+                sent_seed=self.sentinel_seed + len(self.nodes),
+                q_latent=quantize_int8(vec),
+                depth=node.depth + 1
+            )
+            self.nodes[new_id] = new_node
+            node.children.append(new_id)
+            self.save_snapshot()
+            
+            print(f"    [ARCHITECT] 🚀 Spawned anticipatory branch: {new_id}")
+            return new_node
+        
+        return node
+
     def process_drop(self, code_string, file_id):
         vec = code_to_512vec(code_string)
         target_node = self.route_recursive(self.root_id, vec)
@@ -113,6 +164,9 @@ class CovalentTreeEngine:
         """Runs the engine and returns a detailed decision trace."""
         vec = code_to_512vec(code_string)
         target_node = self.route_recursive(self.root_id, vec)
+        
+        # --- AUTONOMOUS EVOLUTION: Anticipatory fracturing ---
+        target_node = self.anticipate_and_fracture(target_node, vec)
         
         s_score = target_node.sent_atom.forward(vec)[3]
         l_score = target_node.logic_atom.forward(vec)[0]
@@ -150,8 +204,6 @@ class CovalentTreeEngine:
             try:
                 import requests
                 import os
-                import sys
-                # Import the trust layer
                 from neuralspace.trust_layer import TrustNode
                 
                 ext = os.path.splitext(file_id)[1].lstrip('.') if file_id else 'unknown'
