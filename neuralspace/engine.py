@@ -139,6 +139,7 @@ class CovalentTreeEngine:
     def _check_known_patterns(self, code_string: str) -> tuple:
         """
         DIRECT PRE-CHECK: Catch obfuscation and evasion patterns.
+        This acts as a safety net in addition to the neural network.
         """
         # --- Existing checks ---
         if 'base64' in code_string and 'eval' in code_string:
@@ -152,17 +153,16 @@ class CovalentTreeEngine:
         if 'os.system' in code_string and 'rm -rf' in code_string:
             return (True, "os.system + rm -rf (destructive command)")
 
-        # --- NEW: Catch getattr indirection ---
-        # This catches: getattr(os, 'sys' + 'tem'), getattr(os, 'system'), etc.
+        # --- Catch getattr indirection ---
         if 'getattr(' in code_string:
             if 'system' in code_string or 'exec' in code_string or 'eval' in code_string:
                 return (True, "getattr indirection (targeting system/exec/eval)")
 
-        # --- NEW: Catch __import__ with system/exec ---
+        # --- Catch __import__ with dangerous calls ---
         if '__import__' in code_string and ('system' in code_string or 'exec' in code_string):
             return (True, "__import__ dynamic import with dangerous call")
 
-        # --- NEW: Catch string concatenation in dangerous calls ---
+        # --- Catch string concatenation evasion ---
         if ('"sys"' in code_string and '"tem"' in code_string) or ("'sys'" in code_string and "'tem'" in code_string):
             if 'system' not in code_string:
                 if 'getattr' in code_string or 'eval' in code_string or 'exec' in code_string:
@@ -187,13 +187,13 @@ class CovalentTreeEngine:
     def process_drop_explain(self, code_string, file_id):
         """Runs the engine and returns a detailed decision trace."""
         
-        # --- DIRECT PRE-CHECK: Check for known dangerous patterns ---
+        # --- DIRECT PRE-CHECK (safety net) ---
         is_threat, reason = self._check_known_patterns(code_string)
         if is_threat:
             print(f"    [PRE-CHECK] Dangerous pattern detected: {reason}")
             return "BLOCKED", 1.0, 0.0, "0x0000", [f"🔴 PRE-CHECK: {reason}"]
         
-        # --- Otherwise, run the normal pipeline ---
+        # --- Normal pipeline (neural + taint) ---
         vec = code_to_512vec_with_language(code_string, file_id)
         target_node = self.route_recursive(self.root_id, vec)
         target_node = self.anticipate_and_fracture(target_node, vec)
@@ -214,7 +214,7 @@ class CovalentTreeEngine:
         else:
             trace.append("✅ No dangerous combinations detected.")
         
-        # --- ADD TAINT ANALYSIS RESULTS ---
+        # --- Taint analysis ---
         try:
             from neuralspace.ast_analyzer import code_to_features_with_taint
             ext = os.path.splitext(file_id)[1].lower() if '.' in file_id else '.py'
