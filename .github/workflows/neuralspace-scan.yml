@@ -27,6 +27,7 @@ jobs:
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install requests fastapi uvicorn
           python -m pip install tree-sitter tree-sitter-python tree-sitter-javascript tree-sitter-typescript tree-sitter-go tree-sitter-rust
+          python -m pip install pyyaml cryptography
 
       - name: Train the AI model
         run: |
@@ -36,11 +37,16 @@ jobs:
       - name: Remove training data
         run: rm -rf training_data
 
-      - name: Verify NeuralSpace installation
+      - name: Scan ONLY the new tests folder
         run: |
-          neuralspace --help
-          echo "✅ NeuralSpace installed successfully."
+          # Scan the entire tests/ folder (which contains test_js/, test_go/, etc.)
+          python -m neuralspace.cli scan tests --quarantine rename
 
-      - name: Check installation
+      - name: Check for threats (ignore test folders)
         run: |
-          echo "✅ NeuralSpace CI passed successfully."
+          if find . -name "*.py.quarantined" | grep -q .; then
+            echo "❌ Threats found in the tests folder!"
+            exit 1
+          else
+            echo "✅ No threats detected in tests folder."
+          fi
