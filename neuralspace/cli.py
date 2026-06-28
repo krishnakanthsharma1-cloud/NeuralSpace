@@ -1,4 +1,4 @@
-# neuralspace/cli.py
+# cli.py
 import click
 import sys
 import os
@@ -20,13 +20,16 @@ def cli():
 @cli.command()
 @click.argument('target_dir', default='./test_codebase')
 @click.option('--quarantine', default='rename', help='Quarantine mode: rename or move')
-def scan(target_dir, quarantine):
+@click.option('--threshold', default=0.25, help='Sentinel threshold (default: 0.25)')
+def scan(target_dir, quarantine, threshold):
     """Scan a directory for malicious code (supports .py, .js, .ts, .go, .rs, .cpp, etc.)."""
     if not os.path.exists(target_dir):
         click.echo(f"[ERROR] Directory '{target_dir}' not found.")
         sys.exit(1)
     
     scanner = SecurityScanner(target_dir, quarantine_mode=quarantine)
+    # Pass the threshold to the engine
+    scanner.engine.sentinel_thresh = float(threshold)
     scanner.run_scan()
 
 
@@ -53,9 +56,7 @@ def generate():
 @cli.command()
 def sync():
     """Sync global threat intelligence from the federated network."""
-    # You'll need to deploy the aggregator and set this URL
     AGGREGATOR_URL = os.environ.get("NEURALSPACE_AGGREGATOR", "http://localhost:8000")
-    
     try:
         response = requests.get(f"{AGGREGATOR_URL}/global-threats", timeout=5)
         data = response.json()

@@ -3,8 +3,9 @@ import math
 import hashlib
 import os
 import torch
+import importlib.resources
 
-# --- Per-seed weight cache (instead of global) ---
+# --- Per-seed weight cache ---
 _WEIGHTS_CACHE = {}
 
 def _load_weights_for_seed(seed):
@@ -12,19 +13,31 @@ def _load_weights_for_seed(seed):
     if seed in _WEIGHTS_CACHE:
         return _WEIGHTS_CACHE[seed]
     
-    weights_path = "atom_weights.pth"
-    if os.path.exists(weights_path):
-        # Load the base trained weights
-        base_weights = torch.load(weights_path, map_location='cpu')
-        # For now, we use the same weights for all seeds.
-        # TODO: In the future, fine-tune per seed using the seed as a mutation key.
-        _WEIGHTS_CACHE[seed] = base_weights
-        return base_weights
+    try:
+        # Load the pre-trained weights bundled with the package
+        weights_file = importlib.resources.files('neuralspace') / 'atom_weights.pth'
+        if weights_file.exists():
+            weights = torch.load(str(weights_file), map_location='cpu')
+            _WEIGHTS_CACHE[seed] = weights
+            return weights
+    except Exception:
+        pass
+    
+    # Fallback: Try CWD (for development)
+    if os.path.exists("atom_weights.pth"):
+        weights = torch.load("atom_weights.pth", map_location='cpu')
+        _WEIGHTS_CACHE[seed] = weights
+        return weights
+    
     return None
 
 class PureNeuralAtom:
-    def __init__(self, seed, input_dim=512, feature_dim=256, load_pretrained=True):
+    # feature_dim is now 4 to match the trainer
+    def __init__(self, seed, input_dim=512, feature_dim=4, output_dim=4, load_pretrained=True):
         self.seed = seed
+        self.input_dim = input_dim
+        self.feature_dim = feature_dim
+        
         weights = _load_weights_for_seed(seed) if load_pretrained else None
 
         if weights is not None:
@@ -36,8 +49,8 @@ class PureNeuralAtom:
             # Fallback: deterministic hash-based random initialization
             self.w_proj = [[(int(hashlib.sha256(f"{seed}_{r}_{c}".encode()).hexdigest()[:16], 16) / 1.8e19 * 2 - 1) for c in range(input_dim)] for r in range(feature_dim)]
             self.b_proj = [(int(hashlib.sha256(f"{seed}_b_{i}".encode()).hexdigest()[:16], 16) / 1.8e19 * 2 - 1) for i in range(feature_dim)]
-            self.w_cls = [[(int(hashlib.sha256(f"{seed+99}_{r}_{c}".encode()).hexdigest()[:16], 16) / 1.8e19 * 2 - 1) for c in range(feature_dim)] for r in range(4)]
-            self.b_cls = [(int(hashlib.sha256(f"{seed+99}_b_{i}".encode()).hexdigest()[:16], 16) / 1.8e19 * 2 - 1) for i in range(4)]
+            self.w_cls = [[(int(hashlib.sha256(f"{seed+99}_{r}_{c}".encode()).hexdigest()[:16], 16) / 1.8e19 * 2 - 1) for c in range(feature_dim)] for r in range(output_dim)]
+            self.b_cls = [(int(hashlib.sha256(f"{seed+99}_b_{i}".encode()).hexdigest()[:16], 16) / 1.8e19 * 2 - 1) for i in range(output_dim)]
 
     def forward(self, x):
         latent = []

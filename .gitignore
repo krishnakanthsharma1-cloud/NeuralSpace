@@ -131,3 +131,4 @@ adversarial_dataset/
 # Build outputs
 dist/
 *.egg-info/
+trust_registry.json
