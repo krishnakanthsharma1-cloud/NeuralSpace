@@ -37,12 +37,11 @@ jobs:
       - name: Remove training data
         run: rm -rf training_data
 
-      - name: Scan ONLY the new tests folder
+      - name: Scan ONLY the tests folder (threats are expected here)
         run: |
-          # Scan the entire tests/ folder (which contains test_js/, test_go/, etc.)
           python -m neuralspace.cli scan tests --quarantine rename
 
-      - name: Check for threats (EXCLUDING tests folder)
+      - name: Check for threats (IGNORING tests folder)
         run: |
           # Look for quarantined files, but ignore anything inside tests/
           if find . -path ./tests -prune -o -name "*.py.quarantined" -print | grep -q .; then
