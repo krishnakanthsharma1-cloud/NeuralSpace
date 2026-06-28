@@ -6,7 +6,7 @@ import math
 from neuralspace.tokenizer import code_to_512vec, code_to_512vec_with_language
 from neuralspace.atoms import PureNeuralAtom
 from neuralspace.hive_mind import HiveMind
-from neuralspace.data_flow import analyze_taint   # <-- NEW import
+from neuralspace.data_flow import analyze_taint
 
 # --- MATH HELPERS ---
 def cosine_similarity(v1, v2):
@@ -46,7 +46,7 @@ class FractalNode:
 
 # --- COVALENT TREE ENGINE ---
 class CovalentTreeEngine:
-    def __init__(self, snapshot_path="tree_snapshot.json"):
+    def __init__(self, snapshot_path="tree_snapshot.json", sentinel_thresh=0.25):
         self.snapshot_path = snapshot_path
         self.nodes = {}
         self.root_id = "0x0000"
@@ -55,7 +55,8 @@ class CovalentTreeEngine:
         self.logic_seed = 257
         self.sentinel_seed = 268
         self.logic_thresh = 0.2
-        self.sentinel_thresh = 0.10
+        # DEFAULT THRESHOLD RAISED TO 0.25 (reduces false positives)
+        self.sentinel_thresh = sentinel_thresh
         self.hive_mind = HiveMind(consensus_threshold=0.7)
         self.load_snapshot()
         self.hive_mind.register_agent(self.root_id)
@@ -105,7 +106,7 @@ class CovalentTreeEngine:
             drift = 1.0 - sim
             total_drift += drift
         return total_drift / (len(node.history) - 1)
-    
+
     def anticipate_and_fracture(self, node, vec):
         drift_velocity = self.calculate_drift_velocity(node, vec)
         if drift_velocity > 0.5 and node.depth < self.max_depth:
@@ -133,15 +134,15 @@ class CovalentTreeEngine:
         for node_id in agent_ids:
             node = self.nodes[node_id]
             s_score = node.sent_atom.forward(vec)[3]
-            confidence = min(1.0, len(node.children) / 10.0 + 0.5)
+            confidence = min(1.0, len(node.children) / 5.0 + 0.2)
             self.hive_mind.submit_vote(node_id, s_score, confidence)
         return self.hive_mind.get_consensus(agent_ids)
 
     def _check_known_patterns(self, code_string: str) -> tuple:
         """
         DIRECT PRE-CHECK: Catch obfuscation and evasion patterns.
-        This acts as a safety net in addition to the neural network.
         """
+        # --- Existing checks ---
         if 'base64' in code_string and 'eval' in code_string:
             return (True, "base64 + eval (obfuscated payload)")
         if 'syscall.Exec' in code_string:
@@ -168,6 +169,13 @@ class CovalentTreeEngine:
                 if 'getattr' in code_string or 'eval' in code_string or 'exec' in code_string:
                     return (True, "string concatenation evasion (sys+tem)")
 
+        # --- NEW: Catch chr() obfuscation (importlib, system, exec, eval) ---
+        if 'chr(' in code_string:
+            if 'importlib.import_module' in code_string:
+                return (True, "importlib + chr() obfuscation (dynamic import)")
+            if 'system' in code_string or 'exec' in code_string or 'eval' in code_string:
+                return (True, "chr() obfuscation (system/exec/eval)")
+
         return (False, "")
 
     def process_drop(self, code_string, file_id):
@@ -177,33 +185,33 @@ class CovalentTreeEngine:
         l_score = target_node.logic_atom.forward(vec)[0]
         print(f"    [DEBUG] Checking {file_id}: S={s_score:.4f} (Thresh:{self.sentinel_thresh}), L={l_score:.4f} (Thresh:{self.logic_thresh})")
         status = "ALLOWED"
-        if s_score >= self.sentinel_thresh: 
+        if s_score >= self.sentinel_thresh:
             status = "BLOCKED"
-        elif l_score < self.logic_thresh: 
+        elif l_score < self.logic_thresh:
             status = "REJECTED"
         self.save_snapshot()
         return status, s_score, l_score, target_node.id
 
     def process_drop_explain(self, code_string, file_id):
         """Runs the engine and returns a detailed decision trace."""
-        
+
         # --- DIRECT PRE-CHECK (safety net) ---
         is_threat, reason = self._check_known_patterns(code_string)
         if is_threat:
             print(f"    [PRE-CHECK] Dangerous pattern detected: {reason}")
             return "BLOCKED", 1.0, 0.0, "0x0000", [f"🔴 PRE-CHECK: {reason}"]
-        
+
         # --- Normal pipeline ---
         vec = code_to_512vec_with_language(code_string, file_id)
         target_node = self.route_recursive(self.root_id, vec)
         target_node = self.anticipate_and_fracture(target_node, vec)
-        
+
         consensus = self.query_hive_mind(vec, file_id)
         print(f"    [HIVE] Consensus: {consensus['decision']} (Score: {consensus['consensus']:.2f})")
-        
+
         s_score = target_node.sent_atom.forward(vec)[3]
         l_score = target_node.logic_atom.forward(vec)[0]
-        
+
         trace = []
         from neuralspace.tokenizer import get_combination_hits
         hits = get_combination_hits(code_string)
@@ -213,37 +221,39 @@ class CovalentTreeEngine:
                 trace.append(f"   - {hit} (+8.0 threat boost)")
         else:
             trace.append("✅ No dangerous combinations detected.")
-        
+
         # --- TAINT ANALYSIS (AST-based) ---
         try:
             from neuralspace.ast_analyzer import code_to_features_with_taint
             ext = os.path.splitext(file_id)[1].lower() if '.' in file_id else '.py'
-            print(f"    [DEBUG] Running taint analysis for {file_id} with ext={ext}")
             taint_results = code_to_features_with_taint(code_string, ext)
-            print(f"    [DEBUG] Taint results: has_tainted_sink={taint_results['has_tainted_sink']}, flow={taint_results['taint_flow']}")
             if taint_results["has_tainted_sink"]:
                 trace.append("🔍 TAINT ANALYSIS: Tainted data reaches dangerous sink!")
                 for flow in taint_results["taint_flow"]:
                     trace.append(f"   - {flow[0]} → {flow[1]}")
         except Exception as e:
             trace.append(f"[!] Taint analysis skipped: {e}")
-            print(f"    [DEBUG] Taint analysis error: {e}")
 
         # --- DATA-FLOW ANALYSIS (True taint propagation) ---
-        try:
-            df_results = analyze_taint(code_string)
-            if df_results["has_tainted_sink"]:
-                trace.append("🌊 DATA-FLOW: Tainted data reaches dangerous sink!")
-                for flow in df_results["taint_flow"]:
-                    trace.append(f"   - {flow[0]} → {flow[1]}")
-        except Exception as e:
-            print(f"[!] Data-flow analysis error: {e}")
+        df_results = analyze_taint(code_string)
+        if df_results.get("has_tainted_sink"):
+            trace.append("🌊 DATA-FLOW: Tainted data reaches dangerous sink!")
+            for flow in df_results["taint_flow"]:
+                trace.append(f"   - {flow[0]} → {flow[1]}")
 
         trace.append(f"📊 Sentinel Score: {s_score:.4f} (Threshold: {self.sentinel_thresh})")
         trace.append(f"📊 Logic Score:    {l_score:.4f} (Threshold: {self.logic_thresh})")
-        
+
+        # --- VERDICT: DATA-FLOW OVERRIDES EVERYTHING ---
         status = "ALLOWED"
-        if s_score >= self.sentinel_thresh:
+
+        # CRITICAL FIX: If data-flow says there's taint, BLOCK immediately
+        if df_results.get("has_tainted_sink"):
+            status = "BLOCKED"
+            trace.append("🚫 DATA-FLOW: Tainted data reached dangerous sink. BLOCKED.")
+
+        # If not blocked by data-flow, use neural scores
+        elif s_score >= self.sentinel_thresh:
             status = "BLOCKED"
             trace.append("🚫 BLOCKED: Sentinel score exceeded threshold.")
         elif l_score < self.logic_thresh:
@@ -251,11 +261,12 @@ class CovalentTreeEngine:
             trace.append("🚫 REJECTED: Logic score below threshold.")
         else:
             trace.append("✅ ALLOWED: File passed all checks.")
-        
+
+        # Hive Mind override (if consensus says THREAT and status is ALLOWED)
         if consensus["decision"] == "THREAT" and status == "ALLOWED":
             status = "BLOCKED"
             trace.append("🧠 HIVE MIND: Collective consensus overrode individual decision.")
-        
+
         # --- Signed reporting ---
         if status == "BLOCKED":
             try:
@@ -277,6 +288,6 @@ class CovalentTreeEngine:
                 print(f"[*] Signed threat report sent to aggregator")
             except Exception as e:
                 print(f"[!] Reporting failed: {e}")
-        
+
         self.save_snapshot()
         return status, s_score, l_score, target_node.id, trace
