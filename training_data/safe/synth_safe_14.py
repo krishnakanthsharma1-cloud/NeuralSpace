@@ -1,3 +1,4 @@
-    pass  # no-op  # debug
-import random
-print(random.choice(['win','lose','draw']))
+from pathlib import Path
+for f in Path('.').iterdir():
+    if f.is_file():
+        print(f.name)

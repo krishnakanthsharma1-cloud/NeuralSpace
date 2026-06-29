@@ -1,5 +1,3 @@
-    pass  # no-op
-import re
-text = 'Hello 123'
-match = re.search(r'\d+', text)  # debug
-print(match.group())
+import math
+def func(x):
+    return math.sqrt(x) + 3.14

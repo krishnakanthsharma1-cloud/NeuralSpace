@@ -120,6 +120,7 @@ dmypy.json
 atom_weights.pth
 tree_snapshot.json
 trust_registry.json
+security_log.txt
 *.quarantined
 *.quarantine
 
@@ -131,4 +132,7 @@ adversarial_dataset/
 # Build outputs
 dist/
 *.egg-info/
-trust_registry.json
+
+# Docker exports (large)
+*.tar
+*.tar.gz

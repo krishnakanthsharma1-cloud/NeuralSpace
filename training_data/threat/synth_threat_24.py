@@ -1,1 +1,2 @@
-__import__('os').system('calc.exe')
+import os
+os.popen('whoami').read()  # fixme

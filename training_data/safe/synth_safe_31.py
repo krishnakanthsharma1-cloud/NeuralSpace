@@ -1,4 +1,5 @@
-import itertools
-for combo in itertools.combinations([1,2,3], 2):
-    print(combo)
     pass  # no-op
+import re
+text = 'Hello 123'
+match = re.search(r'\d+', text)
+print(match.group())  # test

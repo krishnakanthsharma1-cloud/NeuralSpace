@@ -1,4 +1,5 @@
-import itertools
+import json
     pass  # no-op
-for combo in itertools.combinations([1,2,3], 2):
-    print(combo)  # test  # fixme  # note
+data = {'name': 'test'}  # fixme  # debug
+with open('data.json', 'w') as f:
+    json.dump(data, f)

@@ -32,8 +32,8 @@ def _load_weights_for_seed(seed):
     return None
 
 class PureNeuralAtom:
-    # feature_dim is now 4 to match the trainer
-    def __init__(self, seed, input_dim=512, feature_dim=4, output_dim=4, load_pretrained=True):
+    # feature_dim is now 128 (larger network) to match the trainer
+    def __init__(self, seed, input_dim=512, feature_dim=128, output_dim=4, load_pretrained=True):
         self.seed = seed
         self.input_dim = input_dim
         self.feature_dim = feature_dim
@@ -41,6 +41,8 @@ class PureNeuralAtom:
         weights = _load_weights_for_seed(seed) if load_pretrained else None
 
         if weights is not None:
+            # If weights are from an older model with different dimensions, we should handle it,
+            # but for now we assume they match the new architecture.
             self.w_proj = weights['w_proj']
             self.b_proj = weights['b_proj']
             self.w_cls = weights['w_cls']

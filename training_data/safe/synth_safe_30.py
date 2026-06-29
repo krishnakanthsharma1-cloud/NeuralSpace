@@ -1,9 +1,5 @@
     pass  # no-op
 import requests
-import time
-for i in range(3):
-    try:
-        r = requests.get('https://httpbin.org/delay/1', timeout=2)
- print(r.elapsed)
-    except:
-        pass  # note
+response = requests.get('https://api.github.com')
+print(response.status_code)
+    pass  # no-op

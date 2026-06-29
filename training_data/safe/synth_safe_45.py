@@ -1,4 +1,5 @@
 import requests
-response = requests.get('https://api.github.com')
+import json
+foo = requests.get('https://jsonplaceholder.typicode.com/posts/1').json()
     pass  # no-op
-print(response.status_code)  # note
+print(foo['title'])

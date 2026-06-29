@@ -141,8 +141,16 @@ class CovalentTreeEngine:
     def _check_known_patterns(self, code_string: str) -> tuple:
         """
         DIRECT PRE-CHECK: Catch obfuscation and evasion patterns.
+        Includes Java dangerous functions.
         """
-        # --- Existing checks ---
+        # --- SAFE PATTERN EXCEPTIONS (must be first) ---
+        # Allow requests.get and requests.post unless combined with exec/eval
+        if 'requests.get' in code_string and 'exec' not in code_string and 'eval' not in code_string:
+            return (False, "")
+        if 'requests.post' in code_string and 'exec' not in code_string and 'eval' not in code_string:
+            return (False, "")
+
+        # --- Existing threat checks ---
         if 'base64' in code_string and 'eval' in code_string:
             return (True, "base64 + eval (obfuscated payload)")
         if 'syscall.Exec' in code_string:
@@ -191,6 +199,28 @@ class CovalentTreeEngine:
         if 'exec(' in code_string and 'import ' in code_string and (';' in code_string or '\n' in code_string):
             if 'os.' in code_string or 'system' in code_string or 'socket' in code_string:
                 return (True, "exec with dynamic import (potential code execution)")
+
+        # --- C and C++ dangerous functions ---
+        if 'system(' in code_string:
+            return (True, "system() call (C/C++ shell execution)")
+        if 'popen(' in code_string:
+            return (True, "popen() call (C/C++ shell execution)")
+        if 'execl(' in code_string or 'execvp(' in code_string or 'execlp(' in code_string:
+            return (True, "exec*() call (C/C++ process execution)")
+        if 'fork(' in code_string and 'exec' in code_string:
+            return (True, "fork + exec (C/C++ process spawning)")
+
+        # ======================================================================
+        # NEW: Java dangerous functions
+        # ======================================================================
+        if 'Runtime.exec' in code_string:
+            return (True, "Runtime.exec (Java shell execution)")
+        if 'ProcessBuilder' in code_string:
+            return (True, "ProcessBuilder (Java process spawning)")
+        if 'System.load' in code_string:
+            return (True, "System.load (Java native library loading)")
+        if 'Runtime.getRuntime().exec' in code_string:
+            return (True, "Runtime.getRuntime().exec (Java shell execution)")
 
         return (False, "")
 

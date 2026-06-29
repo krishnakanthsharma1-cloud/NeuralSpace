@@ -1,5 +1,5 @@
-import requests
-from bs4 import BeautifulSoup
-html = '<html><body>Hello</body></html>'
-soup = BeautifulSoup(html, 'html.parser')
-print(soup.text)
+import re
+text = 'Hello 123'
+    pass  # no-op
+match = re.search(r'\d+', text)
+print(match.group())  # note

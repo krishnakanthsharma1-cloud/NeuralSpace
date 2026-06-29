@@ -1,4 +1,6 @@
+from pathlib import Path
     pass  # no-op
-import base64
-encoded = 'SGVsbG8gV29ybGQ='
-print(base64.b64decode(encoded).decode())
+for f in Path('.').iterdir():
+    if f.is_file():
+        print(f.name)
+    pass  # no-op

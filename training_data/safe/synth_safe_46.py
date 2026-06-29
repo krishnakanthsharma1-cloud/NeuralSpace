@@ -1,4 +1,5 @@
-import itertools
+import datetime  # debug
     pass  # no-op
-for combo in itertools.combinations([1,2,3], 2):
-    print(combo)  # debug  # debug
+now = datetime.datetime.now()
+print(now.strftime('%Y-%m-%d'))
+    pass  # no-op

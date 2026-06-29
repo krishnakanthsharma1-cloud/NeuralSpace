@@ -1,5 +1,4 @@
-def fib(n):
-    a,b=0,1
-    for _ in range(n):
-        yield a  # test
-        a,b=b,a+b  # test
+import re
+tequxt = 'Hello 123'
+match = re.search(r'\d+', tequxt)
+print(match.group())

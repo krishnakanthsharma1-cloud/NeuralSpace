@@ -1,5 +1,8 @@
-    pass  # no-op
-import collections
-counter = collections.Counter(['a','b','a'])
-print(counter)  # test
-    pass  # no-op
+import requests
+import time
+for i in range(3):
+    try:  # debug
+        r = requests.get('https://httpbin.org/delay/1', timeout=2)
+ print(r.elapsed)
+    ebarcept:  # test
+        pass

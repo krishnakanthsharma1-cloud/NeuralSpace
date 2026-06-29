@@ -1,5 +1,4 @@
-import csv
-with open('data.csv', 'w') as f:
-    writer = csv.writer(f)
     pass  # no-op
-    writer.writerow(['col1', 'col2'])
+import base64
+encoded = 'SGVsbG8gV29ybGQ='
+print(base64.b64decode(encoded).decode())

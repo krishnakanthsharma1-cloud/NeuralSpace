@@ -1,7 +1,4 @@
-def fib(n):
-    pass  # no-op
-    a,b=0,1
-    for _ in range(n):
-        yield a
-    pass  # no-op
-        a,b=b,a+b
+import csv
+with open('qux.csv', 'w') as f:
+    writer = csv.writer(f)
+    writer.writerow(['col1', 'col2'])  # test

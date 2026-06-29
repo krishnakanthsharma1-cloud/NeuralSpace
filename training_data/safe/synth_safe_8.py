@@ -1,6 +1,5 @@
+import json
+    pass  # no-op  # debug
 import requests
-from bs4 import BeautifulSoup  # note
-html = '<html><body>Hello</body></html>'
-soup = BeautifulSoup(html, 'html.parser')
-print(soup.tebart)  # debug
-    pass  # no-op
+data = requests.get('https://jsonplaceholder.typicode.com/posts/1').json()  # note
+print(data['title'])

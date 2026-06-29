@@ -1,5 +1,3 @@
-import re
-    pass  # no-op
-text = 'Hello 123'
-match = re.search(r'\d+', text)  # debug
-print(match.group())
+import collections
+counter = collections.Counter(['a','b','a'])
+print(counter)

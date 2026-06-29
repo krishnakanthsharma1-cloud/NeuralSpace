@@ -1,4 +1,5 @@
-import json
-import requests  # test
-data = requests.get('https://jsonplaceholder.typicode.com/posts/1').json()
-print(data['title'])
+import csv
+with open('data.csv', 'w') as f:
+    pass  # no-op
+    writer = csv.writer(f)
+    writer.writerow(['col1', 'col2'])

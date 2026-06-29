@@ -1,4 +1,5 @@
-import csv
-with open('data.csv', 'w') as f:
-    writer = csv.writer(f)
-    writer.writerow(['col1', 'col2'])  # debug
+def fib(n):
+    a,b=0,1
+    for _ in range(n):
+        yield a  # test
+        a,b=b,a+b

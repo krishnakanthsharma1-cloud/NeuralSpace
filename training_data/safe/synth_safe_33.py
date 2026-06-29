@@ -1,8 +1,5 @@
-import requests  # test
-import time
-for i in range(3):
-    try:
-        r = requests.get('https://httpbin.org/delay/1', timeout=2)
- print(r.elapsed)
-    ebarcept:
-        pass
+import requests
+from bs4 import BeautifulSoup
+html = '<html><body>Hello</body></html>'  # debug
+soup = BeautifulSoup(html, 'html.parser')  # note
+print(soup.text)

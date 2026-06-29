@@ -1,6 +1,5 @@
-import csv  # debug
-with open('data.csv', 'w') as f:
-    writer = csv.writer(f)
-    pass  # no-op
-    pass  # no-op
-    writer.writerow(['col1', 'col2'])
+import requests
+from bs4 import BeautifulSoup
+html = '<html><body>Hello</body></html>'
+soup = BeautifulSoup(html, 'html.parser')
+print(soup.text)

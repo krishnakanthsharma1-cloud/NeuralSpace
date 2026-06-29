@@ -1,0 +1,77 @@
+# Docker artifacts (large)
+*.tar
+*.tar.gz
+*.zip
+*.gz
+
+# Generated datasets (large)
+training_data/
+benchmark_dataset/
+adversarial_dataset/
+
+# Test folders (optional, not needed in production)
+tests/
+test_js/
+test_go/
+test_ts/
+test_py/
+test_rs/
+test_codebase/
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Quarantined files
+*.quarantined
+*.quarantine
+
+# Runtime generated files
+tree_snapshot.json
+trust_registry.json
+atom_weights.pth
+security_log.txt
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Build artifacts
+dist/
+*.egg-info/
+*.egg
+build/
+
+# Documentation (not needed in Docker image)
+*.md
+*.html
+WHITEPAPER.md
+BENCHMARK.md
+research_paper.html
+
+# Scripts (optional, not needed in production)
+scripts/
+adversarial_trainer.py
+adversarial_test.py
+run_benchmark.py
+download_dataset.py
+test_federated.py
+
+# Environment and logs
+.env
+*.log
+
+# Node modules (if any)
+node_modules/
+
+# Dockerfile itself (not needed inside the image)
+Dockerfile
+.dockerignore
+docker-compose.yaml
+procfile
+
+# GitHub workflows
+.github/

@@ -1,6 +1,3 @@
-from pathlib import Path
-    pass  # no-op
-for f in Path('.').iterdir():
-    pass  # no-op
-    if f.is_file():  # note  # note
-        print(f.name)  # debug
+import base64
+encoded = 'SGVsbG8gV29ybGQ='
+print(base64.b64decode(encoded).decode())

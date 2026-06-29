@@ -1,3 +1,5 @@
-import requests
-response = requests.get('https://api.github.com')
-print(response.status_code)  # test
+import itertools
+    pass  # no-op
+for combo in itertools.combinations([1,2,3], 2):
+    print(combo)
+    pass  # no-op

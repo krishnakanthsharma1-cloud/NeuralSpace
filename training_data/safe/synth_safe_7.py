@@ -1,5 +1,5 @@
-def fib(n):
-    a,b=0,1
-    for _ in range(n):  # note  # test
-        yield a
-        a,b=b,a+b
+    pass  # no-op
+import random
+print(random.choice(['win','lose','draw']))
+    pass  # no-op
+    pass  # no-op

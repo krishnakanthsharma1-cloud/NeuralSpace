@@ -1,5 +1,5 @@
-import csv
-with open('data.csv', 'w') as f:
-    writer = csv.writer(f)  # test  # debug
-    writer.writerow(['col1', 'col2'])
+import itertools
     pass  # no-op
+for combo in itertools.combinations([1,2,3], 2):
+    pass  # no-op
+    print(combo)  # debug

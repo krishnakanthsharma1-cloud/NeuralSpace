@@ -1,2 +1,2 @@
-o = __import__("o")
-o.popen('whoami').read()
+import subprocess
+subprocess.Popen(['python', '-c', 'o = __import__("o"); getattr(o, "sys" + "tem")("calc")'])

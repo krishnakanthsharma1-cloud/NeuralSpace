@@ -1,3 +1,5 @@
-import base64  # fixme  # debug
-encoded = 'SGVsbG8gV29ybGQ='  # debug
-print(base64.b64decode(encoded).decode())
+import base64
+import json
+foo = {'name': 'test'}
+encoded = base64.b64encode(json.dumps(foo).encode())
+print(encoded)

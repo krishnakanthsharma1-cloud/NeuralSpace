@@ -60,6 +60,35 @@ except Exception as e:
     RUST_LANG = None
     print(f"[!] Rust language binding not available: {e}")
 
+# --- Load C binding ---
+try:
+    import tree_sitter_c as tsc
+    C_LANG = Language(tsc.language())
+    print("[*] Tree-Sitter C loaded.")
+except Exception as e:
+    C_LANG = None
+    print(f"[!] C language binding not available: {e}")
+
+# --- Load C++ binding ---
+try:
+    import tree_sitter_cpp as tscpp
+    CPP_LANG = Language(tscpp.language())
+    print("[*] Tree-Sitter C++ loaded.")
+except Exception as e:
+    CPP_LANG = None
+    print(f"[!] C++ language binding not available: {e}")
+
+# ======================================================================
+# NEW: Load Java binding
+# ======================================================================
+try:
+    import tree_sitter_java as tsjava
+    JAVA_LANG = Language(tsjava.language())
+    print("[*] Tree-Sitter Java loaded.")
+except Exception as e:
+    JAVA_LANG = None
+    print(f"[!] Java language binding not available: {e}")
+
 # --- Map file extensions to languages ---
 LANGUAGE_MAP = {
     '.py': PY_LANG,
@@ -69,9 +98,18 @@ LANGUAGE_MAP = {
     '.tsx': TS_LANG,
     '.go': GO_LANG,
     '.rs': RUST_LANG,
+    '.c': C_LANG,
+    '.h': C_LANG,
+    '.cpp': CPP_LANG,
+    '.hpp': CPP_LANG,
+    '.cc': CPP_LANG,
+    '.cxx': CPP_LANG,
+    '.java': JAVA_LANG,
 }
 
-# --- Language-specific configurations (UPDATED) ---
+# ======================================================================
+# Language-specific configurations (with Java added)
+# ======================================================================
 LANGUAGE_CONFIGS = {
     '.py': {
         'name': 'python',
@@ -102,7 +140,28 @@ LANGUAGE_CONFIGS = {
         'dangerous_functions': {'std::process::Command', 'std::os::unix::process', 'std::net::TcpStream'},
         'source_functions': {'std::io::stdin', 'std::env::args'},
         'sink_functions': {'std::process::Command'}
-    }
+    },
+    '.c': {
+        'name': 'c',
+        'dangerous_functions': {'system', 'exec', 'execvp', 'popen', 'fork', 'execl', 'execlp'},
+        'source_functions': {'getenv', 'fgets', 'scanf', 'gets'},
+        'sink_functions': {'system', 'exec', 'execvp', 'popen', 'fork', 'execl', 'execlp'}
+    },
+    '.cpp': {
+        'name': 'cpp',
+        'dangerous_functions': {'system', 'exec', 'execvp', 'popen', 'fork', 'execl', 'execlp', 'std::system'},
+        'source_functions': {'getenv', 'fgets', 'scanf', 'std::cin'},
+        'sink_functions': {'system', 'exec', 'execvp', 'popen', 'fork', 'execl', 'execlp', 'std::system'}
+    },
+    # ======================================================================
+    # NEW: Java configuration
+    # ======================================================================
+    '.java': {
+        'name': 'java',
+        'dangerous_functions': {'Runtime.exec', 'ProcessBuilder', 'System.load', 'System.loadLibrary'},
+        'source_functions': {'System.getenv', 'System.getProperty', 'Scanner', 'BufferedReader'},
+        'sink_functions': {'Runtime.exec', 'ProcessBuilder', 'System.load', 'System.loadLibrary'}
+    },
 }
 
 class TaintAnalyzer:
